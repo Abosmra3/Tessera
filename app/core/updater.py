@@ -55,8 +55,8 @@ except Exception:
 
 
 CURRENT_VERSION = APP_VERSION
-REPO_OWNER = ''
-REPO_NAME = ''
+REPO_OWNER = 'Abosmra3'
+REPO_NAME = 'Tessera'
 GITHUB_LATEST_API = f'https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest'
 RELEASES_URL = f'https://github.com/{REPO_OWNER}/{REPO_NAME}/releases' if REPO_OWNER and REPO_NAME else ''
 

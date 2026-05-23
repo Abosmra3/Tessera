@@ -30,8 +30,8 @@ APP_TITLE = "Tessera"
 
 _TARGET_WINDOW_TITLE = base64.b64decode("R3JhbmQgVGhlZnQgQXV0byBW").decode("utf-8")
 
-README_URL = ""
-RELEASES_URL = ""
+README_URL = "https://github.com/Abosmra3/Tessera#how-to-use-the-tool"
+RELEASES_URL = "https://github.com/Abosmra3/Tessera/releases"
 latest_release_url = RELEASES_URL
 _update_notice_initialized = False
 _update_notice_lock = threading.Lock()
