@@ -1,0 +1,10 @@
+opencv-python
+numpy
+keyboard
+pynput
+pywin32
+pyinstaller
+colorama
+PyQt6
+rich
+Pillow

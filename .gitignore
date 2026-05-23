@@ -1,0 +1,10 @@
+# PyInstaller
+build/
+dist/
+*.spec
+.venv
+# Python cache
+__pycache__/
+
+# Local files
+README - old.md
