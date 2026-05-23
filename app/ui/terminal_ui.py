@@ -240,7 +240,7 @@ class UIManager:
             ("Cayo", UIManager._state["cayo"]),
             ("Nosave", UIManager._state["nosave"]),
             ("Anti AFK", UIManager._state["anti_afk"]),
-            ("Target", UIManager._state["target"]),
+            ("Game", UIManager._state["target"]),
         ]
 
         for label, value in rows:
@@ -266,7 +266,7 @@ class UIManager:
         footer_rows = Table.grid(expand=True)
         footer_rows.add_column()
         footer_rows.add_row(f"[bright_black]Open guide: {guide_hotkey}[/bright_black]")
-        footer_rows.add_row("[bright_black]Keep this window visible and run as Administrator.[/bright_black]")
+        footer_rows.add_row("[bright_black]Keep game's window visible.[/bright_black]")
 
         update_text = (UIManager._state.get("update_text") or "").strip()
         if update_text:

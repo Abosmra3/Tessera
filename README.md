@@ -66,6 +66,39 @@ pyinstaller main.py `
 
 ## How to use the tool
 
+### Terminal UI status meanings
+
+The live dashboard in the terminal shows a **Live Status** panel with these labels:
+
+- **Game**
+  - `UNDETECTED`: Tessera could not find the target game window.
+  - `UNFOCUSED`: The target window was found, but it is not currently in the foreground.
+  - `FOCUSED`: The target window is active and in focus.
+
+- **Job Warp**
+  - `READY`: The job warp helper is idle and waiting for input.
+  - `RUNNING`: A job warp action is currently being executed.
+
+- **Casino**
+  - `READY`: The casino helper is idle and waiting for input.
+  - `RUNNING`: The casino helper is currently processing a solve.
+
+- **Cayo**
+  - `READY`: The Cayo helper is idle and waiting for input.
+  - `RUNNING`: The Cayo helper is currently processing a solve.
+
+- **Nosave**
+  - `VERIFYING`: Tessera is checking whether the firewall rule is working correctly during startup.
+  - `ACTIVE`: Nosave is enabled and the firewall rule is active.
+  - `INACTIVE`: Nosave is disabled.
+  - `ERROR`: Nosave verification failed or the rule could not be validated.
+
+- **Anti AFK**
+  - `ACTIVE`: Anti AFK is enabled and the worker is running.
+  - `INACTIVE`: Anti AFK is disabled.
+
+The footer may also show an **update notice** when a newer release is available. The update notice is not a status row, but it is another terminal UI message that tells you where to open the release page.
+
 ### How to use the fingerprint helpers
 
 Both helpers need to be positioned at the starting point of the puzzle. In short: when you begin, don't move the selector — then press the helper hotkey for each fingerprint.
