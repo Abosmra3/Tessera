@@ -439,7 +439,7 @@ def _dispatch_hotkey(key):
 
     if key == pynput_keyboard.Key.f5:
         if is_ctrl and is_alt:
-            anti_afk_toggle()
+            open_latest_release()
         elif is_shift:
             show_readme()
         elif not is_ctrl and not is_alt:
@@ -447,7 +447,9 @@ def _dispatch_hotkey(key):
         return
 
     if key == pynput_keyboard.Key.f6:
-        if is_ctrl and not is_shift and not is_alt:
+        if is_ctrl and is_alt and not is_shift:
+            anti_afk_toggle()
+        elif is_ctrl and not is_shift and not is_alt:
             keypad_solve()
         elif not is_shift and not is_ctrl and not is_alt:
             casino_solve()
@@ -516,7 +518,7 @@ def main():
         "cayo": "f7",
         "toggle_nosave": "f8",
         "toggle_debug": "ctrl+alt+f8",
-        "toggle_anti_afk": "ctrl+alt+f5",
+        "toggle_anti_afk": "ctrl+alt+f6",
         "exit": "end",
     }
 
