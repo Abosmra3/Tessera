@@ -5,6 +5,8 @@ import numpy as np
 from PIL import ImageGrab
 from collections import deque, namedtuple
 
+from app.core.debug import debug_print as _debug_print
+
 __all__ = ["solve_casino"]
 
 _tofind = (950, 155, 1335, 685)
@@ -98,6 +100,9 @@ def solve_casino(bbox, cancel_event=None):
     if bbox is None:
         return
 
+    _debug_print('[*] START solve_casino')
+    _debug_print(f'[*] bbox={bbox}')
+
     im = _grab_with_pil(bbox)
     im = im.resize((1920, 1080))
     sub0_ = im.crop(_tofind)
@@ -112,6 +117,7 @@ def solve_casino(bbox, cancel_event=None):
         ),
         cv2.COLOR_BGR2GRAY,
     )
+    _debug_print(f'[*] cropped board size={sub0.shape}')
 
     togo = []
     for part_rect, pos in _parts:
@@ -120,6 +126,7 @@ def solve_casino(bbox, cancel_event=None):
             im.close()
             return
         if _is_in(sub0, im.crop(part_rect)):
+            _debug_print(f'[*] found target part {pos}')
             togo.append(pos)
 
     if cancel_event is not None and cancel_event.is_set():
@@ -129,12 +136,17 @@ def solve_casino(bbox, cancel_event=None):
     sub0_.close()
     im.close()
 
+    _debug_print(f'[*] target parts={togo}')
     moves = _find_shortest_solution(togo)
+    _debug_print(f'[*] moves={moves}')
 
     for key in moves:
         if cancel_event is not None and cancel_event.is_set():
             return
+        _debug_print(f'[*] pressing {key}')
         keyboard.press(key)
         time.sleep(0.05)
         keyboard.release(key)
         time.sleep(0.05)
+
+    _debug_print('[*] END solve_casino')

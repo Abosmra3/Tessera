@@ -3,6 +3,7 @@ import subprocess
 import socket
 import threading
 import time
+from app.helpers.firewall_check import get_firewall_health_summary
 from app.ui.terminal_ui import UIManager
 from app.core.play_sound import play_sound
 
@@ -10,6 +11,7 @@ __all__ = [
     "toggle_nosave",
     "run_nosave_startup_check",
     "force_disable_nosave",
+    "is_nosave_retryable",
 ]
 
 try:
@@ -97,10 +99,20 @@ def _sync_status():
     global _firewall_enabled
     if _startup_failed:
         _firewall_enabled = False
+        error_reason = _get_nosave_error_reason()
+        UIManager.set_nosave_error_notice(f"{error_reason} Press F8 to recheck.")
         UIManager.set_nosave_state("ERROR")
         return
     _firewall_enabled = _rule_exists()
     UIManager.set_nosave_state("ACTIVE" if _firewall_enabled else "INACTIVE")
+
+
+def _get_nosave_error_reason() -> str:
+    try:
+        summary = get_firewall_health_summary()
+        return summary["reason"]
+    except Exception:
+        return "Nosave failed because the Windows Firewall test could not be completed."
 
 
 def _delete_rule_by_name() -> None:
@@ -108,6 +120,11 @@ def _delete_rule_by_name() -> None:
         "delete", "rule",
         f"name={RULE_NAME}",
     ])
+
+
+def is_nosave_retryable() -> bool:
+    """Return True when the nosave startup verifier failed and can be retried."""
+    return _startup_failed
 
 
 def force_disable_nosave() -> None:
@@ -129,6 +146,7 @@ def run_nosave_startup_check() -> None:
         _startup_failed = False
         _firewall_enabled = False
         UIManager.set_nosave_state("VERIFYING")
+        UIManager.set_nosave_error_notice("")
 
         _delete_rule_by_name()
         _run_netsh([
@@ -149,6 +167,8 @@ def run_nosave_startup_check() -> None:
             return
 
         _startup_failed = True
+        error_reason = _get_nosave_error_reason()
+        UIManager.set_nosave_error_notice(f"{error_reason} Press F8 to recheck.")
         UIManager.set_nosave_state("ERROR")
 
 
@@ -207,8 +227,17 @@ def toggle_nosave(cancel_event=None):
     if _cancelled(cancel_event):
         _force_disable_rule()
         return
+
     if _startup_failed:
-        UIManager.set_nosave_state("ERROR")
+        UIManager.set_nosave_state("VERIFYING")
+        UIManager.set_nosave_error_notice("")
+        run_nosave_startup_check()
+        if _startup_failed:
+            error_reason = _get_nosave_error_reason()
+            UIManager.set_nosave_error_notice(f"{error_reason} Press F8 to recheck.")
+            UIManager.set_nosave_state("ERROR")
+        else:
+            UIManager.set_nosave_state("INACTIVE")
         return
 
     if _firewall_enabled:

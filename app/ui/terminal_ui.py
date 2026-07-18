@@ -30,10 +30,13 @@ class UIManager:
     _state = {
         "target": "UNDETECTED",
         "nosave": "INACTIVE",
+        "nosave_error": "",
         "anti_afk": "INACTIVE",
         "job_warp": "READY",
         "cayo": "READY",
         "casino": "READY",
+        "keypad": "READY",
+        "debug": "DISABLED",
         "update_text": "",
     }
 
@@ -117,11 +120,63 @@ class UIManager:
             UIManager._refresh_locked()
 
     @staticmethod
+    def set_keypad_running(is_running: bool) -> None:
+        with UIManager._lock:
+            if is_running:
+                new_value = "RUNNING"
+                if UIManager._state["keypad"] == new_value:
+                    return
+                UIManager._state["keypad"] = new_value
+                UIManager._status_panel_cache = None
+                UIManager._refresh_locked()
+                return
+
+            current_value = UIManager._state["keypad"]
+            if current_value == "FAIL":
+                return
+            if UIManager._state["keypad"] == "READY":
+                return
+            UIManager._state["keypad"] = "READY"
+            UIManager._status_panel_cache = None
+            UIManager._refresh_locked()
+
+    @staticmethod
+    def set_keypad_status(status: str) -> None:
+        with UIManager._lock:
+            new_value = status.upper()
+            if UIManager._state["keypad"] == new_value:
+                return
+            UIManager._state["keypad"] = new_value
+            UIManager._status_panel_cache = None
+            UIManager._refresh_locked()
+
+    @staticmethod
+    def set_debug_state(state: str) -> None:
+        with UIManager._lock:
+            new_value = str(state).upper()
+            if new_value not in {"ENABLED", "DISABLED"}:
+                new_value = "ENABLED" if str(state).lower() in {"true", "1", "on"} else "DISABLED"
+            if UIManager._state["debug"] == new_value:
+                return
+            UIManager._state["debug"] = new_value
+            UIManager._status_panel_cache = None
+            UIManager._refresh_locked()
+
+    @staticmethod
     def set_update_notice(message: str) -> None:
         with UIManager._lock:
             if UIManager._state["update_text"] == message:
                 return
             UIManager._state["update_text"] = message
+            UIManager._footer_panel_cache = None
+            UIManager._refresh_locked()
+
+    @staticmethod
+    def set_nosave_error_notice(message: str) -> None:
+        with UIManager._lock:
+            if UIManager._state["nosave_error"] == message:
+                return
+            UIManager._state["nosave_error"] = message
             UIManager._footer_panel_cache = None
             UIManager._refresh_locked()
 
@@ -169,18 +224,22 @@ class UIManager:
 
         rows = [
             ("F5", "Job Warp"),
-            ("F6", "Casino"),
-            ("F7", "Cayo"),
+            ("F6", "Casino Fingerprint"),
+            ("CTRL + F6", "Kortz/Casino Keypad"),
+            ("F7", "Cayo Fingerprint"),
             ("F8", "Nosave toggle"),
+            ("CTRL + ALT + F8", "Debug toggle"),
             ("CTRL + ALT + K", "Anti AFK toggle"),
             ("END", "Exit"),
         ]
         if UIManager._hotkeys:
             rows = [
                 (UIManager._format_hotkey(UIManager._hotkeys["job_warp"]), "Job Warp"),
-                (UIManager._format_hotkey(UIManager._hotkeys["casino"]), "Casino"),
-                (UIManager._format_hotkey(UIManager._hotkeys["cayo"]), "Cayo"),
+                (UIManager._format_hotkey(UIManager._hotkeys["casino"]), "Casino Fingerprint"),
+                (UIManager._format_hotkey(UIManager._hotkeys.get("keypad", "ctrl+f6")), "Kortz/Casino Keypad"),
+                (UIManager._format_hotkey(UIManager._hotkeys["cayo"]), "Cayo Fingerprint"),
                 (UIManager._format_hotkey(UIManager._hotkeys["toggle_nosave"]), "Nosave toggle"),
+                (UIManager._format_hotkey(UIManager._hotkeys["toggle_debug"]), "Debug toggle"),
                 (UIManager._format_hotkey(UIManager._hotkeys["toggle_anti_afk"]), "Anti AFK toggle"),
                 (UIManager._format_hotkey(UIManager._hotkeys["exit"]), "Exit"),
             ]
@@ -198,27 +257,32 @@ class UIManager:
 
     @staticmethod
     def _status_text(value: str, row_label: str | None = None) -> Text:
-        display_value = value.upper()
+        display_value = str(value).upper()
         if row_label == "Nosave":
-            text = Text(display_value.ljust(UIManager._STATUS_VALUE_WIDTH))
-            if display_value == "ERROR":
+            compact_value = "ERROR" if display_value.startswith("ERROR:") else display_value
+            text = Text(compact_value.ljust(UIManager._STATUS_VALUE_WIDTH))
+            if compact_value == "ERROR":
                 text.stylize("bold white on red")
-            elif display_value == "VERIFYING":
+            elif compact_value == "VERIFYING":
                 text.stylize("bold yellow")
-            elif display_value == "ACTIVE":
+            elif compact_value == "ACTIVE":
                 text.stylize("bold green")
-            elif display_value == "INACTIVE":
+            elif compact_value == "INACTIVE":
                 text.stylize("bold red")
             else:
                 text.stylize("bold white")
             return text
 
         text = Text(display_value.ljust(UIManager._STATUS_VALUE_WIDTH))
-        if value in ("UNDETECTED", "INACTIVE", "ERROR"):
+        if row_label == "Debug":
+            text.stylize("bold magenta")
+            return text
+
+        if value in ("UNDETECTED", "INACTIVE", "ERROR", "FAIL"):
             text.stylize("bold red")
         elif value == "VERIFYING":
             text.stylize("bold yellow")
-        elif value in ("FOCUSED", "ACTIVE", "RUNNING", "DETECTED"):
+        elif value in ("FOCUSED", "ACTIVE", "RUNNING", "DETECTED") or value.endswith(" LEFT"):
             text.stylize("bold green")
         elif value == "READY":
             text.stylize("bold blue")
@@ -236,16 +300,18 @@ class UIManager:
 
         rows = [
             ("Job Warp", UIManager._state["job_warp"]),
-            ("Casino", UIManager._state["casino"]),
-            ("Cayo", UIManager._state["cayo"]),
+            ("Casino Fingerprint", UIManager._state["casino"]),
+            ("Kortz/Casino Keypad", UIManager._state["keypad"]),
+            ("Cayo Fingerprint", UIManager._state["cayo"]),
             ("Nosave", UIManager._state["nosave"]),
+            ("Debug", UIManager._state["debug"]),
             ("Anti AFK", UIManager._state["anti_afk"]),
             ("Game", UIManager._state["target"]),
         ]
 
         for label, value in rows:
             label_text = Text(label, style="bold white")
-            if label == "Nosave" and value == "ERROR":
+            if label == "Nosave" and str(value).upper().startswith("ERROR:"):
                 label_text = Text(label, style="bold white on red")
             table.add_row(label_text, UIManager._status_text(value, label))
 
@@ -267,6 +333,13 @@ class UIManager:
         footer_rows.add_column()
         footer_rows.add_row(f"[bright_black]Open guide: {guide_hotkey}[/bright_black]")
         footer_rows.add_row("[bright_black]Keep game's window visible.[/bright_black]")
+
+        nosave_error = (UIManager._state.get("nosave_error") or "").strip()
+        if nosave_error:
+            error_row = Text(nosave_error, style="bold white on red")
+            error_row.no_wrap = False
+            error_row.overflow = "fold"
+            footer_rows.add_row(error_row)
 
         update_text = (UIManager._state.get("update_text") or "").strip()
         if update_text:

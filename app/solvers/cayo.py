@@ -4,6 +4,8 @@ import keyboard
 import numpy as np
 from PIL import ImageGrab
 
+from app.core.debug import debug_print as _debug_print
+
 __all__ = ["solve_cayo"]
 
                           
@@ -51,10 +53,13 @@ def solve_cayo(bbox, cancel_event=None):
     if bbox is None:
         return
 
-                                                                 
+    _debug_print('[*] START solve_cayo')
+    _debug_print(f'[*] bbox={bbox}')
+
     raw = np.array(_grab_with_pil(bbox))
     gray = cv2.cvtColor(raw, cv2.COLOR_RGB2GRAY)
     gray = cv2.resize(gray, (1920, 1080), interpolation=cv2.INTER_AREA)
+    _debug_print(f'[*] captured frame shape={gray.shape}')
 
                                         
     templates = []
@@ -63,11 +68,11 @@ def solve_cayo(bbox, cancel_event=None):
         part = cv2.resize(part, None, fx=0.91, fy=0.91)
         templates.append(part)
 
-                             
     scans = [
         gray[y1:y2, x1:x2]
         for (x1, y1, x2, y2) in _scan
     ]
+    _debug_print(f'[*] created {len(templates)} templates and {len(scans)} scan regions')
 
     moves = []
 
@@ -84,17 +89,22 @@ def solve_cayo(bbox, cancel_event=None):
             key = 'd' if path > 0 else 'a'
             moves.extend([key] * abs(path))
 
+        _debug_print(f'[*] scan {i} -> match {j}, diff {diff}, path {path}')
         moves.append('s')
 
                              
     if moves and moves[-1] == 's':
         moves.pop()
 
-                                       
+    _debug_print(f'[*] computed moves={moves}')
+
     for key in moves:
         if cancel_event is not None and cancel_event.is_set():
             return
+        _debug_print(f'[*] pressing {key}')
         keyboard.press(key)
         time.sleep(0.05)
         keyboard.release(key)
         time.sleep(0.05)
+
+    _debug_print('[*] END solve_cayo')

@@ -22,6 +22,7 @@
 * [Tested resolutions (16:9)](#tested-resolutions-169)
 * [How to use the tool](#how-to-use-the-tool)
   * [How to use the fingerprint helpers](#how-to-use-the-fingerprint-helpers)
+  * [How to use the keypad solver](#how-to-use-the-keypad-solver)
   * [How to use Nosave](#how-to-use-nosave)
   * [How to use Job Warp](#how-to-use-job-warp)
 * [License](#license)
@@ -87,6 +88,10 @@ The live dashboard in the terminal shows a **Live Status** panel with these labe
   - `READY`: The Cayo helper is idle and waiting for input.
   - `RUNNING`: The Cayo helper is currently processing a solve.
 
+- **Kortz/Casino Keypad**
+  - `READY`: The keypad solver is idle and waiting for input.
+  - `3 LEFT`, `2 LEFT`, `1 LEFT`: The keypad solver is currently running and shows how many passes remain.
+
 - **Nosave**
   - `VERIFYING`: Tessera is checking whether the firewall rule is working correctly during startup.
   - `ACTIVE`: Nosave is enabled and the firewall rule is active.
@@ -114,6 +119,26 @@ Both helpers need to be positioned at the starting point of the puzzle. In short
 - Press the helper hotkey for each fingerprint as it appears. The helper reads from the fixed selector position, so moving it will cause incorrect results.
 
 - Test the helper once on your setup before relying on it. If it works once it should keep working unless you change system configuration or aspect ratio.
+
+### How to use the keypad solver
+
+- Start the keypad puzzle and leave the game window focused.
+
+- Press `Shift + F6` once when the keypad sequence starts flashing.
+
+- Do not press the hotkey again after each round. A single press starts the full solve cycle automatically.
+
+- The solver detects the keypad mode on its own:
+  - `4x5` for normal mode
+  - `5x6` for hard mode
+
+- After the first detection, Tessera continues the required passes automatically:
+  - normal mode (`4x5`) runs 3 total passes
+  - hard mode (`5x6`) runs 4 total passes
+
+- The terminal status row `Kortz/Casino Keypad` will show how many passes are left while it is running.
+
+- If you need to stop it manually, press `Shift + F6` again. `End` will also stop it because it exits the whole tool.
 
 
 ### How to use Nosave

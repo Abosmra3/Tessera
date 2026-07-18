@@ -7,26 +7,27 @@ import msvcrt
 import threading
 from threading import Thread
 
-import pynput
-from pynput import keyboard as pynput_keyboard
+import keyboard
 
 from app.core.updater import get_update_status
 from app.core.version import APP_VERSION
+from app.core.debug import get_debug_enabled, set_debug, toggle_debug
 from app.solvers.cayo import solve_cayo
 from app.solvers.casino import solve_casino
+from app.solvers.keypad import solve_keypad
 from app.helpers.anti_afk import toggle_anti_afk, stop_anti_afk
 from app.helpers.job_warp import run_job_warp
 from app.helpers.nosave import (
     toggle_nosave,
     run_nosave_startup_check,
     force_disable_nosave,
+    is_nosave_retryable,
 )
 from app.ui.terminal_ui import UIManager, console
 
-_shift_down = False
-
 VERSION = APP_VERSION
 APP_TITLE = "Tessera"
+DEBUG_ENABLED = "--debug" in sys.argv[1:]
 
 _TARGET_WINDOW_TITLE = base64.b64decode("R3JhbmQgVGhlZnQgQXV0byBW").decode("utf-8")
 
@@ -257,6 +258,11 @@ _solver_b_lock = threading.Lock()
 _solver_a_running = False
 _solver_a_lock = threading.Lock()
 
+_keypad_running = False
+_keypad_lock = threading.Lock()
+_keypad_cancel_event = threading.Event()
+
+
 
 def _run_guarded(lock, flag_name, target, *args):
     g = globals()
@@ -292,9 +298,6 @@ def _require_target(fn):
 
 @_require_target
 def job_warp():
-    if _shift_down:
-        return False
-
     def _run():
         run_job_warp(cancel_event=target_undetected)
 
@@ -307,8 +310,6 @@ def job_warp():
 
 @_require_target
 def cayo_solve():
-    if _shift_down:
-        return False
     def _run():
         UIManager.set_solver_b_running(True)
         try:
@@ -321,8 +322,6 @@ def cayo_solve():
 
 @_require_target
 def casino_solve():
-    if _shift_down:
-        return False
     def _run():
         UIManager.set_solver_a_running(True)
         try:
@@ -334,10 +333,36 @@ def casino_solve():
 
 
 @_require_target
-def nosave_toggle():
-    if _shift_down:
-        return False
+def keypad_solve():
+    global _keypad_running
+    with _keypad_lock:
+        if _keypad_running:
+            _keypad_cancel_event.set()
+            return True
+        _keypad_running = True
+        _keypad_cancel_event.clear()
 
+    def _run():
+        UIManager.set_keypad_running(True)
+        try:
+            solve_keypad(
+                current_bbox,
+                cancel_event=_keypad_cancel_event,
+                status_callback=UIManager.set_keypad_status,
+            )
+        finally:
+            global _keypad_running
+            with _keypad_lock:
+                _keypad_running = False
+                _keypad_cancel_event.clear()
+            UIManager.set_keypad_running(False)
+
+    Thread(target=_run, daemon=True).start()
+    return True
+
+
+@_require_target
+def nosave_toggle():
     def _run():
         toggle_nosave(cancel_event=target_undetected)
 
@@ -346,9 +371,6 @@ def nosave_toggle():
 
 
 def anti_afk_toggle():
-    if _shift_down:
-        return False
-
     enabled = toggle_anti_afk(
         is_target_ready=lambda: target_ready.is_set(),
         get_target_hwnd=lambda: current_target_hwnd,
@@ -358,8 +380,7 @@ def anti_afk_toggle():
 
 
 def shutdown():
-    if _shift_down:
-        return
+    _keypad_cancel_event.set()
 
     try:
         stop_anti_afk()
@@ -375,24 +396,32 @@ def shutdown():
     sys.exit(0)
 
 
-def _on_press(key):
-    global _shift_down
-    if key in (
-        pynput_keyboard.Key.shift,
-        pynput_keyboard.Key.shift_l,
-        pynput_keyboard.Key.shift_r,
-    ):
-        _shift_down = True
+def _toggle_debug_hotkey():
+    enabled = toggle_debug()
+    UIManager.set_debug_state("ENABLED" if enabled else "DISABLED")
 
 
-def _on_release(key):
-    global _shift_down
-    if key in (
-        pynput_keyboard.Key.shift,
-        pynput_keyboard.Key.shift_l,
-        pynput_keyboard.Key.shift_r,
-    ):
-        _shift_down = False
+def _shutdown_on_key_press(_event):
+    shutdown()
+
+
+HOTKEY_BINDINGS = {
+    "shift+f5": show_readme,
+    "ctrl+alt+f5": open_latest_release,
+    "f5": job_warp,
+    "f6": casino_solve,
+    "ctrl+f6": keypad_solve,
+    "f7": cayo_solve,
+    "f8": nosave_toggle,
+    "ctrl+alt+f8": _toggle_debug_hotkey,
+    "ctrl+alt+k": anti_afk_toggle,
+}
+
+
+def _register_hotkeys():
+    for hotkey, handler in HOTKEY_BINDINGS.items():
+        keyboard.add_hotkey(hotkey, handler)
+    keyboard.on_press_key("end", _shutdown_on_key_press)
 
 
 def update_monitor():
@@ -422,14 +451,18 @@ def main():
         "show_release": "ctrl+alt+f5",
         "job_warp": "f5",
         "casino": "f6",
+        "keypad": "ctrl+f6",
         "cayo": "f7",
         "toggle_nosave": "f8",
+        "toggle_debug": "ctrl+alt+f8",
         "toggle_anti_afk": "ctrl+alt+k",
         "exit": "end",
     }
 
+    set_debug(DEBUG_ENABLED)
     ensure_running_as_admin_or_exit()
     UIManager.init_dashboard(APP_TITLE, VERSION, hotkey_map)
+    UIManager.set_debug_state("ENABLED" if get_debug_enabled() else "DISABLED")
     UIManager.set_anti_afk_state("INACTIVE")
     run_nosave_startup_check()
 
@@ -438,25 +471,5 @@ def main():
     target_monitor = TargetEventMonitor()
     target_monitor.start()
 
-    shift_listener = pynput_keyboard.Listener(
-        on_press=_on_press,
-        on_release=_on_release,
-        daemon=True,
-    )
-    shift_listener.start()
-
-    hotkeys = pynput.keyboard.GlobalHotKeys(
-        {
-            "<shift>+<f5>": show_readme,
-            "<ctrl>+<alt>+<f5>": open_latest_release,
-            "<f5>": job_warp,
-            "<f6>": casino_solve,
-            "<f7>": cayo_solve,
-            "<f8>": nosave_toggle,
-            "<ctrl>+<alt>+k": anti_afk_toggle,
-            "<end>": shutdown,
-        }
-    )
-
-    hotkeys.start()
-    hotkeys.join()
+    _register_hotkeys()
+    keyboard.wait()
