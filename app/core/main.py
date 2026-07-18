@@ -439,7 +439,7 @@ def _dispatch_hotkey(key):
 
     if key == pynput_keyboard.Key.f5:
         if is_ctrl and is_alt:
-            open_latest_release()
+            anti_afk_toggle()
         elif is_shift:
             show_readme()
         elif not is_ctrl and not is_alt:
@@ -516,7 +516,7 @@ def main():
         "cayo": "f7",
         "toggle_nosave": "f8",
         "toggle_debug": "ctrl+alt+f8",
-        "toggle_anti_afk": "ctrl+alt+k",
+        "toggle_anti_afk": "ctrl+alt+f5",
         "exit": "end",
     }
 

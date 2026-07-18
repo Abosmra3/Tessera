@@ -229,7 +229,7 @@ class UIManager:
             ("F7", "Cayo Fingerprint"),
             ("F8", "Nosave toggle"),
             ("CTRL + ALT + F8", "Debug toggle"),
-            ("CTRL + ALT + K", "Anti AFK toggle"),
+            ("CTRL + ALT + F5", "Anti AFK toggle"),
             ("END", "Exit"),
         ]
         if UIManager._hotkeys:
