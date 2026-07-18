@@ -7,7 +7,8 @@ import msvcrt
 import threading
 from threading import Thread
 
-import keyboard
+import pynput
+from pynput import keyboard as pynput_keyboard
 
 from app.core.updater import get_update_status
 from app.core.version import APP_VERSION
@@ -261,7 +262,7 @@ _solver_a_lock = threading.Lock()
 _keypad_running = False
 _keypad_lock = threading.Lock()
 _keypad_cancel_event = threading.Event()
-
+_pressed_keys = set()
 
 
 def _run_guarded(lock, flag_name, target, *args):
@@ -401,27 +402,87 @@ def _toggle_debug_hotkey():
     UIManager.set_debug_state("ENABLED" if enabled else "DISABLED")
 
 
-def _shutdown_on_key_press(_event):
-    shutdown()
+def _normalize_key(key):
+    key_char = getattr(key, "char", None)
+    if key_char is not None:
+        return str(key_char).lower()
+    key_name = getattr(key, "name", None)
+    if key_name is not None:
+        return str(key_name).lower()
+    return str(key).lower()
 
 
-HOTKEY_BINDINGS = {
-    "shift+f5": show_readme,
-    "ctrl+alt+f5": open_latest_release,
-    "f5": job_warp,
-    "f6": casino_solve,
-    "ctrl+f6": keypad_solve,
-    "f7": cayo_solve,
-    "f8": nosave_toggle,
-    "ctrl+alt+f8": _toggle_debug_hotkey,
-    "ctrl+alt+k": anti_afk_toggle,
-}
+def _is_modifier_key(key):
+    return _normalize_key(key) in {
+        "shift",
+        "shift_l",
+        "shift_r",
+        "ctrl",
+        "ctrl_l",
+        "ctrl_r",
+        "alt",
+        "alt_l",
+        "alt_r",
+        "alt_gr",
+    }
 
 
-def _register_hotkeys():
-    for hotkey, handler in HOTKEY_BINDINGS.items():
-        keyboard.add_hotkey(hotkey, handler)
-    keyboard.on_press_key("end", _shutdown_on_key_press)
+def _dispatch_hotkey(key):
+    key_name = _normalize_key(key)
+    if key == pynput_keyboard.Key.end:
+        shutdown()
+        return
+
+    is_shift = "shift" in _pressed_keys or "shift_l" in _pressed_keys or "shift_r" in _pressed_keys
+    is_ctrl = "ctrl" in _pressed_keys or "ctrl_l" in _pressed_keys or "ctrl_r" in _pressed_keys
+    is_alt = "alt" in _pressed_keys or "alt_l" in _pressed_keys or "alt_r" in _pressed_keys or "alt_gr" in _pressed_keys
+
+    if key == pynput_keyboard.Key.f5:
+        if is_ctrl and is_alt:
+            open_latest_release()
+        elif is_shift:
+            show_readme()
+        elif not is_ctrl and not is_alt:
+            job_warp()
+        return
+
+    if key == pynput_keyboard.Key.f6:
+        if is_ctrl and not is_shift and not is_alt:
+            keypad_solve()
+        elif not is_shift and not is_ctrl and not is_alt:
+            casino_solve()
+        return
+
+    if key == pynput_keyboard.Key.f7:
+        if not is_shift and not is_ctrl and not is_alt:
+            cayo_solve()
+        return
+
+    if key == pynput_keyboard.Key.f8:
+        if is_ctrl and is_alt and not is_shift:
+            _toggle_debug_hotkey()
+        elif not is_shift and not is_ctrl and not is_alt:
+            if not target_ready.is_set() or not target_focused.is_set():
+                return
+            nosave_toggle()
+        return
+
+    if key_name == "k" and is_ctrl and is_alt:
+        anti_afk_toggle()
+        return
+
+
+def _on_press(key):
+    if _is_modifier_key(key):
+        _pressed_keys.add(_normalize_key(key))
+        return
+
+    _dispatch_hotkey(key)
+
+
+def _on_release(key):
+    if _is_modifier_key(key):
+        _pressed_keys.discard(_normalize_key(key))
 
 
 def update_monitor():
@@ -471,5 +532,10 @@ def main():
     target_monitor = TargetEventMonitor()
     target_monitor.start()
 
-    _register_hotkeys()
-    keyboard.wait()
+    hotkey_listener = pynput_keyboard.Listener(
+        on_press=_on_press,
+        on_release=_on_release,
+        daemon=True,
+    )
+    hotkey_listener.start()
+    hotkey_listener.join()
