@@ -6,10 +6,11 @@ from PIL import ImageGrab
 
 from app.core.debug import debug_print as _debug_print
 
-HEIGHTS = [2, 110, 218, 326, 434]
-LENGTHS = [50, 158, 266, 374, 482, 590]
+# Normalized coordinate ratios relative to standard canvas and cropped keypad bounds
+NORM_KEYPAD_BOX = (454 / 1920.0, 300 / 1080.0, 1080 / 1920.0, 830 / 1080.0)
+NORM_HEIGHTS = [h / 530.0 for h in [2, 110, 218, 326, 434]]
+NORM_LENGTHS = [l / 626.0 for l in [50, 158, 266, 374, 482, 590]]
 
-TOFIND = (454, 300, 1080, 830)
 CAPTURE_INTERVAL = 0.1
 CAPTURE_DURATION = 3.0
 REQUIRED_REPEATS = 3
@@ -33,7 +34,10 @@ def _build_digits_lookup(row_count):
 
 
 def _sample_point(img, row_index, column_index):
-    return img[HEIGHTS[row_index]:HEIGHTS[row_index] + 1, LENGTHS[column_index]:LENGTHS[column_index] + 1]
+    h, w = img.shape[:2]
+    py = int(NORM_HEIGHTS[row_index] * h)
+    px = int(NORM_LENGTHS[column_index] * w)
+    return img[py:py + 1, px:px + 1]
 
 
 def _prepare_keypad_image(image):
@@ -60,8 +64,8 @@ def _column_has_dot(img, column_index, row_count):
 def detect_grid_size(img):
     active_columns = sum(
         1
-        for column_index in range(len(LENGTHS))
-        if _column_has_dot(img, column_index, len(HEIGHTS))
+        for column_index in range(len(NORM_LENGTHS))
+        if _column_has_dot(img, column_index, len(NORM_HEIGHTS))
     )
 
     if active_columns == 6:
@@ -106,7 +110,10 @@ def capture_keypad_pattern(bbox, duration=CAPTURE_DURATION, interval=CAPTURE_INT
         if cancel_event is not None and cancel_event.is_set():
             return None
         im = ImageGrab.grab(bbox)
-        screen = im.resize((1920, 1080)).crop(TOFIND)
+        im = im.resize((1920, 1080))
+        w, h = im.size
+        nx1, ny1, nx2, ny2 = NORM_KEYPAD_BOX
+        screen = im.crop((int(nx1 * w), int(ny1 * h), int(nx2 * w), int(ny2 * h)))
         black_and_white_image = _prepare_keypad_image(screen)
 
         try:

@@ -5,10 +5,12 @@ from typing import Any
 
 def run_powershell(command: str) -> str:
     """Run a PowerShell command and return its stdout text."""
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
     result = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
         capture_output=True,
         text=True,
+        creationflags=creationflags,
     )
 
     if result.returncode != 0:

@@ -63,7 +63,7 @@ RELEASES_URL = f'https://github.com/{REPO_OWNER}/{REPO_NAME}/releases' if REPO_O
 
 def get_update_status(timeout: int = 8):
     """
-    Terminal-only updater API.
+    Check GitHub release API for version updates.
 
     Returns:
         (update_available: bool, latest_tag: str|None, release_url: str)

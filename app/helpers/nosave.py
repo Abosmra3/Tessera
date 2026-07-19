@@ -1,10 +1,9 @@
-import base64
 import subprocess
 import socket
 import threading
 import time
 from app.helpers.firewall_check import get_firewall_health_summary
-from app.ui.terminal_ui import UIManager
+from app.ui.gui import UIManager
 from app.core.play_sound import play_sound
 
 __all__ = [
@@ -20,7 +19,7 @@ except Exception:
     overlay = None
 
 RULE_NAME = "NOSAVE_OUT"
-BLOCK_IP = base64.b64decode("MTkyLjgxLjI0MS4xNzE=").decode("utf-8")
+BLOCK_IP = "192.81.241.171"
 SOCKET_CHECK_TIMEOUT_SEC = 1.0
 
 _firewall_enabled = False
@@ -56,6 +55,18 @@ def _banner_off():
 
 
 def _rule_exists() -> bool:
+    try:
+        import pythoncom
+        import win32com.client
+        pythoncom.CoInitialize()
+        policy = win32com.client.Dispatch("HNetCfg.FwPolicy2")
+        try:
+            policy.Rules.Item(RULE_NAME)
+            return True
+        except Exception:
+            return False
+    except Exception:
+        pass
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     result = subprocess.run(
         ["netsh", "advfirewall", "firewall", "show", "rule", f"name={RULE_NAME}"],
@@ -64,6 +75,32 @@ def _rule_exists() -> bool:
         creationflags=creationflags,
     )
     return result.returncode == 0
+
+
+def _add_rule_out(name: str, remoteip: str) -> None:
+    try:
+        import pythoncom
+        import win32com.client
+        pythoncom.CoInitialize()
+        policy = win32com.client.Dispatch("HNetCfg.FwPolicy2")
+        rule = win32com.client.Dispatch("HNetCfg.FwRule")
+        rule.Name = name
+        rule.Description = "Tessera NoSave outbound block rule"
+        rule.Direction = 2
+        rule.Action = 0
+        rule.Enabled = True
+        rule.RemoteAddresses = remoteip
+        policy.Rules.Add(rule)
+        return
+    except Exception:
+        pass
+    _run_netsh([
+        "add", "rule",
+        f"name={name}",
+        "dir=out",
+        "action=block",
+        f"remoteip={remoteip}",
+    ])
 
 
 def _test_ip_blocked(timeout: float = SOCKET_CHECK_TIMEOUT_SEC) -> bool:
@@ -95,18 +132,6 @@ def _apply_verified_disabled_state() -> None:
     play_sound("off.wav")
 
 
-def _sync_status():
-    global _firewall_enabled
-    if _startup_failed:
-        _firewall_enabled = False
-        error_reason = _get_nosave_error_reason()
-        UIManager.set_nosave_error_notice(f"{error_reason} Press F8 to recheck.")
-        UIManager.set_nosave_state("ERROR")
-        return
-    _firewall_enabled = _rule_exists()
-    UIManager.set_nosave_state("ACTIVE" if _firewall_enabled else "INACTIVE")
-
-
 def _get_nosave_error_reason() -> str:
     try:
         summary = get_firewall_health_summary()
@@ -116,6 +141,15 @@ def _get_nosave_error_reason() -> str:
 
 
 def _delete_rule_by_name() -> None:
+    try:
+        import pythoncom
+        import win32com.client
+        pythoncom.CoInitialize()
+        policy = win32com.client.Dispatch("HNetCfg.FwPolicy2")
+        policy.Rules.Remove(RULE_NAME)
+        return
+    except Exception:
+        pass
     _run_netsh([
         "delete", "rule",
         f"name={RULE_NAME}",
@@ -130,46 +164,48 @@ def is_nosave_retryable() -> bool:
 def force_disable_nosave() -> None:
     """Remove block rule without verification, overlay, or sound."""
     global _firewall_enabled
-    _delete_rule_by_name()
-    _firewall_enabled = False
-    UIManager.set_nosave_state("INACTIVE")
-
-
-def _reset_rule_on_startup() -> None:
-    force_disable_nosave()
+    with _toggle_lock:
+        _delete_rule_by_name()
+        _firewall_enabled = False
+        UIManager.set_nosave_state("INACTIVE")
 
 
 def run_nosave_startup_check() -> None:
     """Silently verify firewall effectiveness once at startup via socket test."""
     global _firewall_enabled, _startup_failed
     with _toggle_lock:
+        if _rule_exists():
+            _delete_rule_by_name()
+
         _startup_failed = False
         _firewall_enabled = False
         UIManager.set_nosave_state("VERIFYING")
         UIManager.set_nosave_error_notice("")
 
         _delete_rule_by_name()
-        _run_netsh([
-            "add", "rule",
-            f"name={RULE_NAME}",
-            "dir=out",
-            "action=block",
-            f"remoteip={BLOCK_IP}",
-        ])
+        _add_rule_out(RULE_NAME, BLOCK_IP)
         time.sleep(0.35)
         blocked_ok = _test_ip_blocked()
 
         _delete_rule_by_name()
         time.sleep(0.2)
 
-        if blocked_ok:
-            UIManager.set_nosave_state("INACTIVE")
+        if not blocked_ok:
+            _delete_rule_by_name()
+            _startup_failed = True
+            _firewall_enabled = False
+            error_reason = _get_nosave_error_reason()
+            UIManager.set_nosave_error_notice(f"{error_reason} Press F8 to recheck.")
+            UIManager.set_nosave_state("ERROR")
             return
 
-        _startup_failed = True
-        error_reason = _get_nosave_error_reason()
-        UIManager.set_nosave_error_notice(f"{error_reason} Press F8 to recheck.")
-        UIManager.set_nosave_state("ERROR")
+        _startup_failed = False
+        if _rule_exists():
+            _delete_rule_by_name()
+            time.sleep(0.1)
+
+        _firewall_enabled = False
+        UIManager.set_nosave_state("INACTIVE")
 
 
 def _cancelled(cancel_event=None) -> bool:
@@ -191,15 +227,9 @@ def _add_firewall_rule(cancel_event=None):
             return
 
         _delete_rule_by_name()
-        _run_netsh([
-            "add", "rule",
-            f"name={RULE_NAME}",
-            "dir=out",
-            "action=block",
-            f"remoteip={BLOCK_IP}",
-        ])
+        _add_rule_out(RULE_NAME, BLOCK_IP)
 
-        time.sleep(0.2)
+        time.sleep(0.05)
         if _cancelled(cancel_event):
             _force_disable_rule()
             return
@@ -215,7 +245,7 @@ def _delete_firewall_rule(cancel_event=None):
 
         _delete_rule_by_name()
 
-        time.sleep(0.2)
+        time.sleep(0.05)
         if _cancelled(cancel_event):
             _force_disable_rule()
             return

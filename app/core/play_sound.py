@@ -1,12 +1,10 @@
-import multiprocessing
 import os
+import queue
 import sys
 import threading
 from pathlib import Path
 
-CMD_PLAY = "PLAY"
-
-__all__ = ["play_sound"]
+__all__ = ["play_sound", "cleanup_sound_worker"]
 
 
 def _resolve_assets_dir() -> Path:
@@ -27,70 +25,62 @@ def _resolve_sound_path(assets_dir: Path, filename: str):
     return sound_path
 
 
-def _sound_worker(event_queue):
-    if os.name != "nt":
-        return
+class _SoundWorker:
+    def __init__(self):
+        self._queue = queue.Queue()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
 
-    try:
-        import winsound
-    except Exception:
-        return
-
-    assets_dir = _resolve_assets_dir()
-
-    while True:
+    def _run(self):
+        if os.name != "nt":
+            return
         try:
-            event = event_queue.get()
-        except (EOFError, OSError):
-            break
+            import winsound
+        except Exception:
+            return
 
-        if not isinstance(event, tuple) or len(event) != 2:
-            continue
+        while True:
+            try:
+                item = self._queue.get()
+                if item is None:
+                    break
+                sound_path = item
+                try:
+                    winsound.PlaySound(
+                        str(sound_path),
+                        winsound.SND_FILENAME,
+                    )
+                except Exception:
+                    pass
+            except Exception:
+                break
 
-        cmd, payload = event
-        if cmd != CMD_PLAY:
-            continue
-
-        sound_path = _resolve_sound_path(assets_dir, str(payload))
-        if sound_path is None:
-            continue
-
+    def play(self, sound_path: Path):
         try:
-            winsound.PlaySound(
-                str(sound_path),
-                winsound.SND_FILENAME | winsound.SND_ASYNC,
-            )
+            self._queue.put(sound_path)
+        except Exception:
+            pass
+
+    def cleanup(self):
+        try:
+            self._queue.put(None)
+            if os.name == "nt":
+                import winsound
+                winsound.PlaySound(None, winsound.SND_PURGE)
         except Exception:
             pass
 
 
-_ctx = multiprocessing.get_context("spawn")
-_proc = None
-_queue = None
-_lifecycle_lock = threading.Lock()
+_worker = None
+_worker_lock = threading.Lock()
 
 
-def _ensure_started():
-    global _proc, _queue
-    with _lifecycle_lock:
-        if _proc is not None and _proc.is_alive():
-            return
-
-        _queue = _ctx.Queue()
-        _proc = _ctx.Process(target=_sound_worker, args=(_queue,), daemon=True)
-        _proc.start()
-
-
-def _enqueue_event(event):
-    _ensure_started()
-    with _lifecycle_lock:
-        queue_ref = _queue
-    if queue_ref is None:
-        return
-    try:
-        queue_ref.put(event)
-    except (EOFError, OSError):
-        pass
+def _get_worker():
+    global _worker
+    with _worker_lock:
+        if _worker is None:
+            _worker = _SoundWorker()
+        return _worker
 
 
 def play_sound(filename: str):
@@ -101,4 +91,22 @@ def play_sound(filename: str):
     filename = filename.strip()
     if not filename:
         return
-    _enqueue_event((CMD_PLAY, filename))
+
+    assets_dir = _resolve_assets_dir()
+    sound_path = _resolve_sound_path(assets_dir, filename)
+    if sound_path is None:
+        return
+
+    worker = _get_worker()
+    worker.play(sound_path)
+
+
+def cleanup_sound_worker():
+    global _worker
+    with _worker_lock:
+        if _worker is not None:
+            try:
+                _worker.cleanup()
+            except Exception:
+                pass
+            _worker = None

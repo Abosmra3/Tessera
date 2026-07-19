@@ -10,6 +10,8 @@ try:
 except Exception:
     overlay = None
 
+from app.core.play_sound import play_sound
+
 __all__ = ["toggle_anti_afk", "stop_anti_afk", "is_anti_afk_enabled"]
 
 INTERVAL_SECONDS = 14 * 60
@@ -190,6 +192,7 @@ def toggle_anti_afk(
             new_state = True
 
     _safe_overlay(_banner_on if new_state else _banner_off)
+    play_sound("on.wav" if new_state else "off.wav")
     return new_state
 
 

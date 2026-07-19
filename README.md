@@ -39,13 +39,21 @@ pip install -r requirements.txt
 
 ## Compile the code yourself
 
+You can build the standalone GUI executable using PyInstaller with `--noconsole` (so no terminal window opens):
+
 ```bash
 pyinstaller main.py `
   --onefile `
+  --noconsole `
   --uac-admin `
   --icon=icon.ico `
-  --name "tessera" `
+  --name "Tessera" `
   --add-data "assets;assets"
+```
+
+Or build directly using the included spec file:
+```bash
+pyinstaller tessera.spec
 ```
 
 ## Tested resolutions (16:9)
@@ -58,7 +66,7 @@ pyinstaller main.py `
 - Recommended setup:
   - Run the target application in **fullscreen**, **borderless fullscreen**, or **windowed** (borderless window preferred).
   - Set Windows display scaling to **100%** (DPI scaling can shift coordinates and break helpers).
-  - Keep the tool's terminal window off the target display (use a second monitor, or minimize it).
+  - Keep the tool's GUI window off the target display or minimized to the background.
 
 - If your display is not 16:9 the helpers may be inaccurate. To troubleshoot:
   - Confirm the in-app resolution matches one of the tested values.
@@ -100,7 +108,7 @@ Both helpers need to be positioned at the starting point of the hack. In short: 
   - normal mode (`4x5`) runs 3 total passes
   - hard mode (`5x6`) runs 4 total passes
 
-- The terminal status row `Kortz/Casino Keypad` will show how many passes are left while it is running.
+- The GUI dashboard status card and Debug Window (`CTRL + ALT + F8`) will show how many passes are left while it is running.
 
 - If you need to stop it manually, press `Shift + F6` again. `End` will also stop it because it exits the whole tool.
 

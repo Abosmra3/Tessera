@@ -1,12 +1,12 @@
-import base64
 import sys
 import webbrowser
 import ctypes
 import ctypes.wintypes
-import msvcrt
 import threading
 from threading import Thread
 
+from PyQt6.QtCore import QSharedMemory
+from PyQt6.QtWidgets import QApplication
 import pynput
 from pynput import keyboard as pynput_keyboard
 
@@ -24,13 +24,13 @@ from app.helpers.nosave import (
     force_disable_nosave,
     is_nosave_retryable,
 )
-from app.ui.terminal_ui import UIManager, console
+from app.ui.gui import UIManager
 
 VERSION = APP_VERSION
 APP_TITLE = "Tessera"
 DEBUG_ENABLED = "--debug" in sys.argv[1:]
 
-_TARGET_WINDOW_TITLE = base64.b64decode("R3JhbmQgVGhlZnQgQXV0byBW").decode("utf-8")
+_TARGET_WINDOW_TITLE = "Grand Theft Auto V"
 
 README_URL = "https://github.com/Abosmra3/Tessera#how-to-use-the-tool"
 RELEASES_URL = "https://github.com/Abosmra3/Tessera/releases"
@@ -80,6 +80,29 @@ def get_window_rect(hwnd):
     return None
 
 
+_shared_memory = None
+
+
+def check_single_instance() -> bool:
+    global _shared_memory
+    if QApplication.instance() is None:
+        _app = QApplication(sys.argv)
+    _shared_memory = QSharedMemory("TesseraSingleInstanceKey")
+    if not _shared_memory.create(1):
+        hwnd = ctypes.windll.user32.FindWindowW(None, "Tessera")
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 9)
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            "Tessera is already running.",
+            "Tessera",
+            0x40 | 0x0
+        )
+        return False
+    return True
+
+
 def is_admin() -> bool:
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
@@ -91,20 +114,13 @@ def ensure_running_as_admin_or_exit():
     if is_admin():
         return
 
-    console.print("[yellow][!] Administrator permission is required.[/yellow]")
-    console.print("[dim]Press any key to continue and restart as Administrator...[/dim]")
-    try:
-        msvcrt.getch()
-    except Exception:
-        input()
-
-    console.print("[yellow][!] Restarting as Administrator...[/yellow]")
-
     if getattr(sys, "frozen", False):
         executable = sys.executable
         params = " ".join(f'"{arg}"' for arg in sys.argv[1:])
     else:
         executable = sys.executable
+        if executable.lower().endswith("python.exe"):
+            executable = executable[:-10] + "pythonw.exe"
         script = sys.argv[0]
         params = " ".join([f'"{script}"'] + [f'"{arg}"' for arg in sys.argv[1:]])
 
@@ -120,7 +136,12 @@ def ensure_running_as_admin_or_exit():
         if result <= 32:
             raise OSError(f"ShellExecuteW failed with code {result}")
     except Exception:
-        console.print("[red][!] Failed to elevate privileges.[/red]")
+        ctypes.windll.user32.MessageBoxW(
+            None,
+            "Administrator permission is required to run this application. Please restart as Administrator.",
+            "Permission Required",
+            0x10 | 0x0
+        )
         sys.exit(1)
 
     sys.exit(0)
@@ -253,34 +274,72 @@ class TargetEventMonitor:
             self._thread.start()
 
 
-_solver_b_running = False
-_solver_b_lock = threading.Lock()
+class GuardedTask:
+    """Encapsulates execution state and locking for background solver threads."""
 
-_solver_a_running = False
-_solver_a_lock = threading.Lock()
+    def __init__(self, name: str):
+        self.name = name
+        self._lock = threading.Lock()
+        self._running = False
 
-_keypad_running = False
-_keypad_lock = threading.Lock()
-_keypad_cancel_event = threading.Event()
+    @property
+    def is_running(self) -> bool:
+        with self._lock:
+            return self._running
+
+    def run(self, target, *args) -> bool:
+        with self._lock:
+            if self._running:
+                return False
+            self._running = True
+
+        def _runner():
+            try:
+                target(*args)
+            finally:
+                with self._lock:
+                    self._running = False
+
+        Thread(target=_runner, daemon=True, name=f"task_{self.name}").start()
+        return True
+
+
+class ToggleableGuardedTask(GuardedTask):
+    """Guarded task that cancels a running instance if triggered again."""
+
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.cancel_event = threading.Event()
+
+    def toggle_or_run(self, target, *args) -> bool:
+        with self._lock:
+            if self._running:
+                self.cancel_event.set()
+                return True
+            self._running = True
+            self.cancel_event.clear()
+
+        def _runner():
+            try:
+                target(self.cancel_event, *args)
+            finally:
+                with self._lock:
+                    self._running = False
+                    self.cancel_event.clear()
+
+        Thread(target=_runner, daemon=True, name=f"task_{self.name}").start()
+        return True
+
+    def cancel(self):
+        self.cancel_event.set()
+
+
+_cayo_task = GuardedTask("cayo")
+_casino_task = GuardedTask("casino")
+_job_warp_task = ToggleableGuardedTask("job_warp")
+_nosave_task = GuardedTask("nosave")
+_keypad_task = ToggleableGuardedTask("keypad")
 _pressed_keys = set()
-
-
-def _run_guarded(lock, flag_name, target, *args):
-    g = globals()
-    with lock:
-        if g[flag_name]:
-            return False
-        g[flag_name] = True
-
-    def _runner():
-        try:
-            target(*args)
-        finally:
-            with lock:
-                g[flag_name] = False
-
-    Thread(target=_runner, daemon=True).start()
-    return True
 
 
 def _require_target(fn):
@@ -299,14 +358,10 @@ def _require_target(fn):
 
 @_require_target
 def job_warp():
-    def _run():
-        run_job_warp(cancel_event=target_undetected)
+    def _run(cancel_event):
+        run_job_warp(cancel_event=cancel_event)
 
-    Thread(
-        target=_run,
-        daemon=True,
-    ).start()
-    return True
+    return _job_warp_task.toggle_or_run(_run)
 
 
 @_require_target
@@ -318,7 +373,7 @@ def cayo_solve():
         finally:
             UIManager.set_solver_b_running(False)
 
-    return _run_guarded(_solver_b_lock, "_solver_b_running", _run)
+    return _cayo_task.run(_run)
 
 
 @_require_target
@@ -330,36 +385,23 @@ def casino_solve():
         finally:
             UIManager.set_solver_a_running(False)
 
-    return _run_guarded(_solver_a_lock, "_solver_a_running", _run)
+    return _casino_task.run(_run)
 
 
 @_require_target
 def keypad_solve():
-    global _keypad_running
-    with _keypad_lock:
-        if _keypad_running:
-            _keypad_cancel_event.set()
-            return True
-        _keypad_running = True
-        _keypad_cancel_event.clear()
-
-    def _run():
+    def _run(cancel_event):
         UIManager.set_keypad_running(True)
         try:
             solve_keypad(
                 current_bbox,
-                cancel_event=_keypad_cancel_event,
+                cancel_event=cancel_event,
                 status_callback=UIManager.set_keypad_status,
             )
         finally:
-            global _keypad_running
-            with _keypad_lock:
-                _keypad_running = False
-                _keypad_cancel_event.clear()
             UIManager.set_keypad_running(False)
 
-    Thread(target=_run, daemon=True).start()
-    return True
+    return _keypad_task.toggle_or_run(_run)
 
 
 @_require_target
@@ -367,8 +409,7 @@ def nosave_toggle():
     def _run():
         toggle_nosave(cancel_event=target_undetected)
 
-    Thread(target=_run, daemon=True).start()
-    return True
+    return _nosave_task.run(_run)
 
 
 def anti_afk_toggle():
@@ -381,20 +422,50 @@ def anti_afk_toggle():
 
 
 def shutdown():
-    _keypad_cancel_event.set()
+    import os
+    import subprocess
+
+    _keypad_task.cancel()
+    _job_warp_task.cancel()
 
     try:
         stop_anti_afk()
-        UIManager.set_anti_afk_state("INACTIVE")
+    except Exception:
+        pass
+
+    # Delete the firewall rule directly without acquiring _toggle_lock
+    # or updating UI — we're about to kill the process anyway.
+    try:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        subprocess.run(
+            ["netsh", "advfirewall", "firewall", "delete", "rule", "name=NOSAVE_OUT"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags,
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+    # Terminate the overlay child process without acquiring its lock.
+    try:
+        from app.ui import overlay as _overlay_mod
+        proc = _overlay_mod._proc
+        if proc is not None and proc.is_alive():
+            proc.terminate()
+            proc.join(timeout=2)
+            if proc.is_alive():
+                proc.kill()
     except Exception:
         pass
 
     try:
-        force_disable_nosave()
+        from app.core.play_sound import cleanup_sound_worker
+        cleanup_sound_worker()
     except Exception:
         pass
 
-    sys.exit(0)
+    os._exit(0)
 
 
 def _toggle_debug_hotkey():
@@ -509,6 +580,9 @@ def update_monitor():
 
 
 def main():
+    if not check_single_instance():
+        sys.exit(0)
+
     hotkey_map = {
         "show_readme": "shift+f5",
         "show_release": "ctrl+alt+f5",
@@ -525,9 +599,14 @@ def main():
     set_debug(DEBUG_ENABLED)
     ensure_running_as_admin_or_exit()
     UIManager.init_dashboard(APP_TITLE, VERSION, hotkey_map)
+    UIManager.register_cleanup_callback(shutdown)
     UIManager.set_debug_state("ENABLED" if get_debug_enabled() else "DISABLED")
     UIManager.set_anti_afk_state("INACTIVE")
-    run_nosave_startup_check()
+    Thread(
+        target=run_nosave_startup_check,
+        daemon=True,
+        name="nosave_startup_check",
+    ).start()
 
     Thread(target=update_monitor, daemon=True).start()
 
@@ -540,4 +619,8 @@ def main():
         daemon=True,
     )
     hotkey_listener.start()
-    hotkey_listener.join()
+
+    try:
+        UIManager.run_event_loop()
+    finally:
+        shutdown()

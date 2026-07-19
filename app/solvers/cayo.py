@@ -9,8 +9,9 @@ from app.core.debug import debug_print as _debug_print
 __all__ = ["solve_cayo"]
 
                           
-_targets = [
-    (907, y1, 1562, y2)
+# Normalized coordinate ratios (0.0 to 1.0) relative to standard 16:9 canvas
+NORM_TARGETS = [
+    (907 / 1920.0, y1 / 1080.0, 1562 / 1920.0, y2 / 1080.0)
     for y1, y2 in [
         (331, 431),
         (404, 504),
@@ -23,12 +24,19 @@ _targets = [
     ]
 ]
 
-                
-_scan = [(424, 360 + 76 * i, 810, 415 + 76 * i) for i in range(8)]
+NORM_SCANS = [
+    (424 / 1920.0, (360 + 76 * i) / 1080.0, 810 / 1920.0, (415 + 76 * i) / 1080.0)
+    for i in range(8)
+]
 
 
 def _grab_with_pil(bbox):
     return ImageGrab.grab(bbox)
+
+
+def _to_pixels(norm_box, width, height):
+    nx1, ny1, nx2, ny2 = norm_box
+    return int(nx1 * width), int(ny1 * height), int(nx2 * width), int(ny2 * height)
 
 
 def _best_match_index(part, templates, threshold=0.65):
@@ -59,18 +67,19 @@ def solve_cayo(bbox, cancel_event=None):
     raw = np.array(_grab_with_pil(bbox))
     gray = cv2.cvtColor(raw, cv2.COLOR_RGB2GRAY)
     gray = cv2.resize(gray, (1920, 1080), interpolation=cv2.INTER_AREA)
+    h, w = gray.shape[:2]
     _debug_print(f'[*] captured frame shape={gray.shape}')
 
-                                        
     templates = []
-    for x1, y1, x2, y2 in _targets:
+    for norm_box in NORM_TARGETS:
+        x1, y1, x2, y2 = _to_pixels(norm_box, w, h)
         part = gray[y1:y2, x1:x2]
         part = cv2.resize(part, None, fx=0.91, fy=0.91)
         templates.append(part)
 
     scans = [
         gray[y1:y2, x1:x2]
-        for (x1, y1, x2, y2) in _scan
+        for (x1, y1, x2, y2) in [_to_pixels(box, w, h) for box in NORM_SCANS]
     ]
     _debug_print(f'[*] created {len(templates)} templates and {len(scans)} scan regions')
 

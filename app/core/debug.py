@@ -19,3 +19,10 @@ def toggle_debug() -> bool:
 def debug_print(*args, **kwargs):
     if DEBUG:
         print(*args, **kwargs)
+    try:
+        from app.ui.gui import UIManager
+        msg = " ".join(str(a) for a in args)
+        if msg:
+            UIManager.append_debug_line(msg)
+    except Exception:
+        pass

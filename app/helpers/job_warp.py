@@ -2,7 +2,7 @@ import keyboard
 import time
 import threading
 from app.ui import overlay
-from app.ui.terminal_ui import UIManager
+from app.ui.gui import UIManager
 
 __all__ = ["run_job_warp"]
 

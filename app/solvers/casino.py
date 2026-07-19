@@ -9,22 +9,28 @@ from app.core.debug import debug_print as _debug_print
 
 __all__ = ["solve_casino"]
 
-_tofind = (950, 155, 1335, 685)
+# Normalized coordinate ratios (0.0 to 1.0) relative to standard 16:9 canvas
+NORM_BOARD_BOX = (950 / 1920.0, 155 / 1080.0, 1335 / 1920.0, 685 / 1080.0)
 
-_parts = [
-    [(482, 279, 482 + 102, 279 + 102), (0, 0)],
-    [(627, 279, 627 + 102, 279 + 102), (1, 0)],
-    [(482, 423, 482 + 102, 423 + 102), (0, 1)],
-    [(627, 423, 627 + 102, 423 + 102), (1, 1)],
-    [(482, 566, 482 + 102, 566 + 102), (0, 2)],
-    [(627, 566, 627 + 102, 566 + 102), (1, 2)],
-    [(482, 711, 482 + 102, 711 + 102), (0, 3)],
-    [(627, 711, 627 + 102, 711 + 102), (1, 3)],
+NORM_PARTS = [
+    [((482 / 1920.0, 279 / 1080.0, 584 / 1920.0, 381 / 1080.0)), (0, 0)],
+    [((627 / 1920.0, 279 / 1080.0, 729 / 1920.0, 381 / 1080.0)), (1, 0)],
+    [((482 / 1920.0, 423 / 1080.0, 584 / 1920.0, 525 / 1080.0)), (0, 1)],
+    [((627 / 1920.0, 423 / 1080.0, 729 / 1920.0, 525 / 1080.0)), (1, 1)],
+    [((482 / 1920.0, 566 / 1080.0, 584 / 1920.0, 668 / 1080.0)), (0, 2)],
+    [((627 / 1920.0, 566 / 1080.0, 729 / 1920.0, 668 / 1080.0)), (1, 2)],
+    [((482 / 1920.0, 711 / 1080.0, 584 / 1920.0, 813 / 1080.0)), (0, 3)],
+    [((627 / 1920.0, 711 / 1080.0, 729 / 1920.0, 813 / 1080.0)), (1, 3)],
 ]
 
 
 def _grab_with_pil(bbox):
     return ImageGrab.grab(bbox)
+
+
+def _to_pixels(norm_box, width, height):
+    nx1, ny1, nx2, ny2 = norm_box
+    return int(nx1 * width), int(ny1 * height), int(nx2 * width), int(ny2 * height)
 
 
 def _is_in(img, subimg):
@@ -105,7 +111,8 @@ def solve_casino(bbox, cancel_event=None):
 
     im = _grab_with_pil(bbox)
     im = im.resize((1920, 1080))
-    sub0_ = im.crop(_tofind)
+    w, h = im.size
+    sub0_ = im.crop(_to_pixels(NORM_BOARD_BOX, w, h))
     sub0 = cv2.cvtColor(
         np.array(
             sub0_.resize(
@@ -120,12 +127,12 @@ def solve_casino(bbox, cancel_event=None):
     _debug_print(f'[*] cropped board size={sub0.shape}')
 
     togo = []
-    for part_rect, pos in _parts:
+    for norm_rect, pos in NORM_PARTS:
         if cancel_event is not None and cancel_event.is_set():
             sub0_.close()
             im.close()
             return
-        if _is_in(sub0, im.crop(part_rect)):
+        if _is_in(sub0, im.crop(_to_pixels(norm_rect, w, h))):
             _debug_print(f'[*] found target part {pos}')
             togo.append(pos)
 
