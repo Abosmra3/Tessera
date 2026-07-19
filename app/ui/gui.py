@@ -5,13 +5,27 @@ compact Qt desktop window instead of a terminal console layout.
 """
 
 import sys
+import os
 import threading
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, QObject, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QSizePolicy, QVBoxLayout, QWidget
 
 EVENT_INIT = "INIT"
 EVENT_STATE = "STATE"
+
+
+def _resolve_icon_path() -> str:
+    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    icon_path = base_dir / "icon.ico"
+    if icon_path.exists():
+        return str(icon_path)
+    icon_path = Path("icon.ico")
+    if icon_path.exists():
+        return str(icon_path.resolve())
+    return ""
 
 
 class _PanelWidget(QFrame):
@@ -66,8 +80,8 @@ class _DashboardWindow(QWidget):
         super().__init__(None)
         self._title_label = QLabel()
         self._title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._title_label.setFixedHeight(18)
-        self._title_label.setStyleSheet("color: #f4f6fb; font-family: 'Segoe UI'; font-size: 13px; font-weight: 700; padding-bottom: 2px;")
+        self._title_label.setFixedHeight(24)
+        self._title_label.setStyleSheet("margin-bottom: 2px;")
 
         self._controls_panel = _PanelWidget("Controls")
         self._status_panel = _PanelWidget("Live Status")
@@ -134,6 +148,9 @@ class _DashboardWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, False)
         self.setWindowTitle("Tessera")
+        icon_path = _resolve_icon_path()
+        if icon_path:
+            self.setWindowIcon(QIcon(icon_path))
         self.setObjectName("mainWindow")
         self.setStyleSheet(
             "QWidget#mainWindow {"
@@ -288,9 +305,14 @@ class _DashboardWindow(QWidget):
 
         self._state = dict(state)
         
-        title_text = f"{self._app_title}  {self._version}"
-        if self._title_label.text() != title_text:
-            self._title_label.setText(title_text)
+        title_html = (
+            f'<div style="text-align: center;">'
+            f'<span style="font-family: \'Segoe UI\'; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.8px;">{self._app_title.upper()}</span>'
+            f'<span style="font-family: \'Segoe UI\'; font-size: 9px; font-weight: 700; color: #58c8ff; background-color: rgba(88, 200, 255, 0.15); border: 1px solid rgba(88, 200, 255, 0.3); border-radius: 4px; padding: 1px 5px; margin-left: 8px; vertical-align: middle;">{self._version}</span>'
+            f'</div>'
+        )
+        if self._title_label.text() != title_html:
+            self._title_label.setText(title_html)
 
         self._set_status_value("Job Warp", self._state["job_warp"])
         self._set_status_value("Casino Fingerprint", self._state["casino"])

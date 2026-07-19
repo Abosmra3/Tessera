@@ -1,5 +1,3 @@
-from fcntl import I_FIND
-
 import cv2
 import time
 import keyboard
@@ -12,6 +10,7 @@ from app.core.debug import debug_print as _debug_print
 NORM_KEYPAD_BOX = (454 / 1920.0, 300 / 1080.0, 1080 / 1920.0, 830 / 1080.0)
 NORM_HEIGHTS = [h / 530.0 for h in [2, 110, 218, 326, 434]]
 NORM_LENGTHS = [l / 626.0 for l in [50, 158, 266, 374, 482, 590]]
+NORM_CHECK_POINT = (44 / 626.0, 92 / 530.0)
 
 CAPTURE_INTERVAL = 0.1
 CAPTURE_DURATION = 3.0
@@ -151,10 +150,17 @@ def check(bbox, cancel_event=None):
         if cancel_event is not None and cancel_event.is_set():
             return False
         im = ImageGrab.grab(bbox)
-        screen = im.resize((1920,1080)).crop(I_FIND)
+        im = im.resize((1920, 1080))
+        w, h = im.size
+        nx1, ny1, nx2, ny2 = NORM_KEYPAD_BOX
+        screen = im.crop((int(nx1 * w), int(ny1 * h), int(nx2 * w), int(ny2 * h)))
         grayImage = cv2.cvtColor(np.array(screen), cv2.COLOR_BGR2GRAY)
-        (thresh, blackAndWhiteImage) = cv2.threshold(grayImage, 215, 255, cv2.THRESH_BINARY)
-        crop_img = blackAndWhiteImage[92:92 + 1, 44:44 + 1]
+        (_, blackAndWhiteImage) = cv2.threshold(grayImage, 215, 255, cv2.THRESH_BINARY)
+
+        sw_h, sw_w = blackAndWhiteImage.shape[:2]
+        px = int(NORM_CHECK_POINT[0] * sw_w)
+        py = int(NORM_CHECK_POINT[1] * sw_h)
+        crop_img = blackAndWhiteImage[py:py + 1, px:px + 1]
 
         if np.mean(crop_img) == 0:
             keyboard.press_and_release('w')
@@ -184,7 +190,7 @@ def calculate(numbers, cancel_event=None):
                     keyboardgo.append('s')
         keyboardgo.append('return')
 
-    _debug_print('-', keyboardgo)
+    _debug_print(f'[*] computed moves={keyboardgo}')
     for key in keyboardgo:
         if cancel_event is not None and cancel_event.is_set():
             return False
@@ -196,11 +202,10 @@ def calculate(numbers, cancel_event=None):
             if not _sleep_with_cancel(0.1, cancel_event):
                 return False
 
-    _debug_print('[*] END')
     return True
 
-def main(bbox, cancel_event=None, status_callback=None):
 
+def main(bbox, cancel_event=None, status_callback=None):
     try:
         total_rounds = None
 
@@ -237,14 +242,12 @@ def main(bbox, cancel_event=None, status_callback=None):
             if not _sleep_with_cancel(ROUND_DELAY, cancel_event):
                 return
     except KeyError as e:
-        _debug_print(f'[!] Cyan pattern not detected. {e} - current resolution {bbox[2]}x{bbox[3]}')
+        _debug_print(f'[!] Cyan pattern not detected: {e} - current resolution {bbox[2]}x{bbox[3]}')
         if status_callback is not None:
             status_callback("FAIL")
             if not _sleep_with_cancel(3.0, cancel_event):
                 return
             status_callback("READY")
-    finally:
-        _debug_print('=============================================')
 
 
 def solve_keypad(bbox, cancel_event=None, status_callback=None):
@@ -253,4 +256,9 @@ def solve_keypad(bbox, cancel_event=None, status_callback=None):
     if bbox is None:
         return
 
-    main(bbox, cancel_event=cancel_event, status_callback=status_callback)
+    _debug_print('[*] START solve_keypad')
+    _debug_print(f'[*] bbox={bbox}')
+    try:
+        main(bbox, cancel_event=cancel_event, status_callback=status_callback)
+    finally:
+        _debug_print('[*] END solve_keypad')
