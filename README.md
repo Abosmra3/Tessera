@@ -7,10 +7,8 @@
 **A tool to assist with GTAO Heists**
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#)
-[![Python](https://img.shields.io/badge/python-3.10%2B-yellow.svg)](#)
-[![Status](https://img.shields.io/badge/status-active-success.svg)](#)
 [![Downloads](https://img.shields.io/github/downloads/Abosmra3/Tessera/total?label=Downloads)](https://github.com/Abosmra3/Tessera/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#)
 </div>
 
 ---
