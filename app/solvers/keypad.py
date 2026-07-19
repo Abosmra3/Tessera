@@ -1,3 +1,5 @@
+from fcntl import I_FIND
+
 import cv2
 import time
 import keyboard
@@ -149,7 +151,7 @@ def check(bbox, cancel_event=None):
         if cancel_event is not None and cancel_event.is_set():
             return False
         im = ImageGrab.grab(bbox)
-        screen = im.resize((1920,1080)).crop(TOFIND)
+        screen = im.resize((1920,1080)).crop(I_FIND)
         grayImage = cv2.cvtColor(np.array(screen), cv2.COLOR_BGR2GRAY)
         (thresh, blackAndWhiteImage) = cv2.threshold(grayImage, 215, 255, cv2.THRESH_BINARY)
         crop_img = blackAndWhiteImage[92:92 + 1, 44:44 + 1]
