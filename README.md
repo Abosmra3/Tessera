@@ -4,7 +4,7 @@
 
 # Tessera
 
-**A Windows desktop utility for screen-based pattern recognition helpers and configurable hotkey workflows.**
+**A tool to assist with GTAO Heists**
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#)
@@ -67,58 +67,22 @@ pyinstaller main.py `
 
 ## How to use the tool
 
-### Terminal UI status meanings
-
-The live dashboard in the terminal shows a **Live Status** panel with these labels:
-
-- **Game**
-  - `UNDETECTED`: Tessera could not find the target game window.
-  - `UNFOCUSED`: The target window was found, but it is not currently in the foreground.
-  - `FOCUSED`: The target window is active and in focus.
-
-- **Job Warp**
-  - `READY`: The job warp helper is idle and waiting for input.
-  - `RUNNING`: A job warp action is currently being executed.
-
-- **Casino**
-  - `READY`: The casino helper is idle and waiting for input.
-  - `RUNNING`: The casino helper is currently processing a solve.
-
-- **Cayo**
-  - `READY`: The Cayo helper is idle and waiting for input.
-  - `RUNNING`: The Cayo helper is currently processing a solve.
-
-- **Kortz/Casino Keypad**
-  - `READY`: The keypad solver is idle and waiting for input.
-  - `3 LEFT`, `2 LEFT`, `1 LEFT`: The keypad solver is currently running and shows how many passes remain.
-
-- **Nosave**
-  - `VERIFYING`: Tessera is checking whether the firewall rule is working correctly during startup.
-  - `ACTIVE`: Nosave is enabled and the firewall rule is active.
-  - `INACTIVE`: Nosave is disabled.
-  - `ERROR`: Nosave verification failed or the rule could not be validated.
-
-- **Anti AFK**
-  - `ACTIVE`: Anti AFK is enabled and the worker is running.
-  - `INACTIVE`: Anti AFK is disabled.
-
-The footer may also show an **update notice** when a newer release is available. The update notice is not a status row, but it is another terminal UI message that tells you where to open the release page.
-
 ### How to use the fingerprint helpers
 
-Both helpers need to be positioned at the starting point of the puzzle. In short: when you begin, don't move the selector — then press the helper hotkey for each fingerprint.
+Both helpers need to be positioned at the starting point of the hack. In short: when you start hacking, don't move the selector — then press the helper hotkey for each fingerprint.
 
-- Make sure the tool is launched before you begin.
+- Make sure you have launched the tool before you begin the hack.
 
-- Position the selector/cursor at the exact starting point of the puzzle and leave it there — do not move the selector during the puzzle.
+- Position the selector/cursor at the exact starting point of the fingerprint hack and leave it there — do not move the selector during the hack.
 
-- Begin and, when required, press the appropriate helper hotkey:
-  - **F6**: Casino helper
-  - **F7**: Cayo helper
+- Start the hack and, when required, press the appropriate helper hotkey:
+  - **F6**: Casino fingerprint helper
+  - **F7**: Cayo fingerprint helper
 
 - Press the helper hotkey for each fingerprint as it appears. The helper reads from the fixed selector position, so moving it will cause incorrect results.
 
-- Test the helper once on your setup before relying on it. If it works once it should keep working unless you change system configuration or aspect ratio.
+- Test the helper once before a critical heist to confirm it works on your setup. If it works once it should keep working unless you change system configuration or aspect ratio.
+
 
 ### How to use the keypad solver
 
@@ -141,28 +105,49 @@ Both helpers need to be positioned at the starting point of the puzzle. In short
 - If you need to stop it manually, press `Shift + F6` again. `End` will also stop it because it exits the whole tool.
 
 
-### How to use Nosave
+### How to Use No Save (Current Method)
 
-- Make sure the tool is launched beforehand to be safe.
+- Make sure you have launched the tool before starting your heist. While you can launch it during the heist, it's recommended to start it beforehand so you don't forget.
 
-- When you toggle Nosave with `F8` you should see a small HUD banner in the top-right of your screen indicating the state: `No Save ON` (green) when enabled and `No Save OFF` (red) when disabled. If you don't see the banner, ensure the tool's dependencies are installed and that overlays are not blocked by other software.
+- Play the heist as you normally would. Make sure you've tested the tool at least once beforehand. You don't need to test it before every heist—if it worked once, it should continue working unless you've made changes to your system (such as installing antivirus software or modifying game/tool settings).
 
-- Toggle Nosave **on** shortly before the moment you want to prevent a save (10–20 seconds is a safe buffer).
+- When you toggle No Save with `F8`, you should see a small HUD banner in the top-right corner indicating its status:
 
-- Continue normally and wait until you are back in control before disabling.
+  - `No Save ON` (green) when enabled.
+  - `No Save OFF` (red) when disabled.
 
-- Once you are fully loaded back (no loading indicators), disable Nosave with `F8`.
+  If you don't see the banner, make sure the tool's dependencies are installed and that overlays aren't being blocked by other software.
 
-- After disabling, you can resume normal play.
+- Play through the heist normally. Near the very end of the finale, just before completion, enable **No Save** with `F8`.
 
-- While Nosave-affecting actions are pending, avoid any prompts or external menus that may force a save.
+- After the heist finishes, you should see a **"Save Failed"** alert. This is expected and indicates that No Save is working correctly.
+
+- Wait until all ending cutscenes have finished, you've received your payout, and you have full control of your GTA Online character again.
+
+- Open the pause menu and go to **Online → Leave GTA Online** to return to Story Mode.
+
+- Once Story Mode has fully loaded (make sure there are no loading indicators or spinning circles), disable **No Save** by pressing `F8`.
+
+- Return to **GTA Online**, but **ONLY** join an **Invite Only** or **Friends Only** session. **DO NOT** join a public session at this stage.
+
+- Once you've loaded into the private session, force the game to save by either:
+
+  - Changing your outfit, **or**
+  - Pressing **ALT+F4**.
+
+  Wait until you see the **yellow loading circle** in the bottom-right corner and the **"Save Successful"** notification.
+
+- After the save has completed successfully, leave GTA Online and return to **Story Mode** one more time. **Do not re-enable No Save** during this step.
+
+- Finally, reconnect to **GTA Online** (again using an **Invite Only** or **Friends Only** session). Your payout should be saved while your heist progress and preps remain intact.
+
 
 ### How to use Job Warp
 
-- Make sure the tool is running.
-- Set Matchmaking to **Closed** in the relevant menu.
-- On the map, hover over the destination you want to warp to.
-- Press **F5** while the destination is highlighted (ensure the start action is visible at the bottom of the screen) to warp to it.
+- Make sure the tool is running while you're in an Online session.
+- Open the Pause Menu → Online → Options and set **Matchmaking** to **Closed**.
+- In the Map hover over the **Job**  you want to teleport to.
+- Press **F5** while the job is highlighted (make sure the start job option is visible in the bottom of the screen) to teleport to that job.
 
 
 ## License
