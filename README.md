@@ -7,10 +7,8 @@
 **A tool to assist with GTAO Heists**
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#)
-[![Python](https://img.shields.io/badge/python-3.10%2B-yellow.svg)](#)
-[![Status](https://img.shields.io/badge/status-active-success.svg)](#)
 [![Downloads](https://img.shields.io/github/downloads/Abosmra3/Tessera/total?label=Downloads)](https://github.com/Abosmra3/Tessera/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#)
 </div>
 
 ---
@@ -21,6 +19,7 @@
 * [Compile the code yourself](#compile-the-code-yourself)
 * [Tested resolutions (16:9)](#tested-resolutions-169)
 * [How to use the tool](#how-to-use-the-tool)
+  * [Customizing Keybinds](#customizing-keybinds)
   * [How to use the fingerprint helpers](#how-to-use-the-fingerprint-helpers)
   * [How to use the keypad solver](#how-to-use-the-keypad-solver)
   * [How to use Nosave](#how-to-use-nosave)
@@ -75,6 +74,17 @@ pyinstaller tessera.spec
 
 ## How to use the tool
 
+### Customizing Keybinds
+
+All hotkeys in Tessera are fully customizable through the built-in keybind editor.
+
+- Click the **Edit Keybinds** button at the bottom of the dashboard to open the editor.
+- Each action has its own keybind field. Click a field and press any key combination to record a new hotkey.
+- You can also **hide individual actions** from the Controls and Live Status panels using the checkboxes next to each row — useful for features you don't use.
+- Use the **Reset to Defaults** button to restore all keybinds to their original values. A confirmation prompt will appear before any changes are applied.
+- Your keybinds are saved to `%APPDATA%\Tessera\keybinds.json` and persist across restarts automatically.
+
+
 ### How to use the fingerprint helpers
 
 Both helpers need to be positioned at the starting point of the hack. In short: when you start hacking, don't move the selector — then press the helper hotkey for each fingerprint.
@@ -83,7 +93,7 @@ Both helpers need to be positioned at the starting point of the hack. In short: 
 
 - Position the selector/cursor at the exact starting point of the fingerprint hack and leave it there — do not move the selector during the hack.
 
-- Start the hack and, when required, press the appropriate helper hotkey:
+- Start the hack and, when required, press the appropriate helper hotkey (default keybinds, customizable via the editor):
   - **F6**: Casino fingerprint helper
   - **F7**: Cayo fingerprint helper
 
@@ -96,7 +106,7 @@ Both helpers need to be positioned at the starting point of the hack. In short: 
 
 - Start the keypad puzzle and leave the game window focused.
 
-- Press `Shift + F6` once when the keypad sequence starts flashing.
+- Press `Ctrl + F6` (default, customizable) once when the keypad sequence starts flashing.
 
 - Do not press the hotkey again after each round. A single press starts the full solve cycle automatically.
 
@@ -119,7 +129,7 @@ Both helpers need to be positioned at the starting point of the hack. In short: 
 
 - Play the heist as you normally would. Make sure you've tested the tool at least once beforehand. You don't need to test it before every heist—if it worked once, it should continue working unless you've made changes to your system (such as installing antivirus software or modifying game/tool settings).
 
-- When you toggle No Save with `F8`, you should see a small HUD banner in the top-right corner indicating its status:
+- When you toggle No Save with `F8` (default, customizable), you should see a small HUD banner in the top-right corner indicating its status:
 
   - `No Save ON` (green) when enabled.
   - `No Save OFF` (red) when disabled.
@@ -155,7 +165,7 @@ Both helpers need to be positioned at the starting point of the hack. In short: 
 - Make sure the tool is running while you're in an Online session.
 - Open the Pause Menu → Online → Options and set **Matchmaking** to **Closed**.
 - In the Map hover over the **Job**  you want to teleport to.
-- Press **F5** while the job is highlighted (make sure the start job option is visible in the bottom of the screen) to teleport to that job.
+- Press **F5** (default, customizable) while the job is highlighted (make sure the start job option is visible in the bottom of the screen) to teleport to that job.
 
 
 ## License

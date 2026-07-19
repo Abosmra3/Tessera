@@ -30,7 +30,8 @@ VERSION = APP_VERSION
 APP_TITLE = "Tessera"
 DEBUG_ENABLED = "--debug" in sys.argv[1:]
 
-_TARGET_WINDOW_TITLE = "Grand Theft Auto V"
+_GTA_PROCESS_NAME = "GTA5.exe"
+_GTA_TITLE_SUBSTRINGS = ["grand theft auto v"]
 
 README_URL = "https://github.com/Abosmra3/Tessera#how-to-use-the-tool"
 RELEASES_URL = "https://github.com/Abosmra3/Tessera/releases"
@@ -71,6 +72,60 @@ class RECT(ctypes.Structure):
 
 def find_window(title: str):
     return user32.FindWindowW(None, title)
+
+
+def _find_gta_hwnd():
+    """Find GTA V's main window by process name first, then title substring."""
+    import ctypes.wintypes
+
+    psapi = ctypes.windll.psapi
+    kernel32 = ctypes.windll.kernel32
+
+    found_hwnd = [None]
+
+    EnumWindowsProc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+
+    def _enum_callback(hwnd, _lparam):
+        if not user32.IsWindowVisible(hwnd):
+            return True
+        # Get window title
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length == 0:
+            return True
+        buf = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buf, length + 1)
+        title = buf.value.lower()
+
+        # Check title substring first (fast path)
+        title_match = any(sub in title for sub in _GTA_TITLE_SUBSTRINGS)
+
+        if not title_match:
+            return True
+
+        # Verify by process name
+        pid = ctypes.wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        hproc = kernel32.OpenProcess(0x0400 | 0x0010, False, pid.value)  # QUERY_INFO | VM_READ
+        if hproc:
+            try:
+                name_buf = ctypes.create_unicode_buffer(260)
+                if psapi.GetModuleBaseNameW(hproc, None, name_buf, 260):
+                    if name_buf.value.lower() == _GTA_PROCESS_NAME.lower():
+                        found_hwnd[0] = hwnd
+                        return False  # Stop enumeration
+                # Fallback: accept by title alone if process name unreadable
+                found_hwnd[0] = hwnd
+                return False
+            finally:
+                kernel32.CloseHandle(hproc)
+        else:
+            # Can't open process — accept by title
+            found_hwnd[0] = hwnd
+            return False
+        return True
+
+    user32.EnumWindows(EnumWindowsProc(_enum_callback), 0)
+    return found_hwnd[0]
 
 
 def get_window_rect(hwnd):
@@ -188,7 +243,7 @@ def _set_target_state(ready: bool, focused: bool):
 
 def _refresh_target_state():
     global current_bbox, current_target_hwnd
-    hwnd = find_window(_TARGET_WINDOW_TITLE)
+    hwnd = _find_gta_hwnd()
     if not hwnd:
         current_target_hwnd = None
         _set_target_state(False, False)
@@ -421,6 +476,34 @@ def anti_afk_toggle():
     return True
 
 
+def kill_game():
+    """Force-terminate the detected GTA V process using its known window handle."""
+    import subprocess
+    import ctypes.wintypes
+
+    hwnd = current_target_hwnd
+    if not hwnd:
+        return  # Game not detected, nothing to kill
+
+    pid = ctypes.wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if not pid.value:
+        return
+
+    try:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        subprocess.run(
+            ["taskkill", "/F", "/PID", str(pid.value)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags,
+            timeout=5,
+        )
+
+    except Exception:
+        pass
+
+
 def shutdown():
     import os
     import subprocess
@@ -468,6 +551,91 @@ def shutdown():
     os._exit(0)
 
 
+CURRENT_HOTKEYS = {}
+
+DEFAULT_HOTKEYS = {
+    "job_warp": "f5",
+    "casino": "f6",
+    "keypad": "ctrl+f6",
+    "cayo": "f7",
+    "toggle_nosave": "f8",
+    "toggle_anti_afk": "ctrl+f5",
+    "kill_game": "",
+    "exit": "end",
+    "toggle_debug": "",
+}
+
+DEFAULT_HIDDEN_ACTIONS = ["toggle_debug"]
+
+
+def get_keybinds_filepath():
+    import os
+    appdata = os.environ.get("APPDATA")
+    if not appdata:
+        appdata = os.path.expanduser("~")
+    folder = os.path.join(appdata, "Tessera")
+    os.makedirs(folder, exist_ok=True)
+    return os.path.join(folder, "keybinds.json")
+
+
+CURRENT_HIDDEN_ACTIONS = []
+
+
+def load_keybinds(defaults, default_hidden=None):
+    import os
+    import json
+    global CURRENT_HIDDEN_ACTIONS
+    CURRENT_HIDDEN_ACTIONS = list(default_hidden) if default_hidden else []
+    path = get_keybinds_filepath()
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    raw_hidden = data.get("hidden_actions", [])
+                    if isinstance(raw_hidden, list):
+                        CURRENT_HIDDEN_ACTIONS = [str(a).strip().lower() for a in raw_hidden]
+
+                    merged = dict(defaults)
+                    seen_combos = set()
+                    has_duplicates = False
+                    for k in defaults.keys():
+                        if k in data:
+                            combo = str(data[k]).lower().strip()
+                            if combo:
+                                if combo in seen_combos:
+                                    merged[k] = ""  # Unbind duplicate
+                                    has_duplicates = True
+                                else:
+                                    merged[k] = combo
+                                    seen_combos.add(combo)
+                            else:
+                                merged[k] = ""
+                        else:
+                            pass
+
+                    if has_duplicates:
+                        save_keybinds(merged, CURRENT_HIDDEN_ACTIONS)
+                    return merged
+        except Exception:
+            pass
+    return dict(defaults)
+
+
+def save_keybinds(keybinds, hidden_actions):
+    import os
+    import json
+    path = get_keybinds_filepath()
+    try:
+        data = dict(keybinds)
+        data["hidden_actions"] = list(hidden_actions)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4)
+        return True
+    except Exception:
+        return False
+
+
 def _toggle_debug_hotkey():
     enabled = toggle_debug()
     UIManager.set_debug_state("ENABLED" if enabled else "DISABLED")
@@ -500,49 +668,50 @@ def _is_modifier_key(key):
 
 def _dispatch_hotkey(key):
     key_name = _normalize_key(key)
-    if key == pynput_keyboard.Key.end:
-        shutdown()
+    
+    is_shift = any(k in _pressed_keys for k in ("shift", "shift_l", "shift_r"))
+    is_ctrl = any(k in _pressed_keys for k in ("ctrl", "ctrl_l", "ctrl_r"))
+    is_alt = any(k in _pressed_keys for k in ("alt", "alt_l", "alt_r", "alt_gr"))
+
+    parts = []
+    if is_ctrl:
+        parts.append("ctrl")
+    if is_alt:
+        parts.append("alt")
+    if is_shift:
+        parts.append("shift")
+    parts.append(key_name)
+    pressed_combo = "+".join(parts)
+
+    action = None
+    for act, combo in CURRENT_HOTKEYS.items():
+        if combo == pressed_combo:
+            action = act
+            break
+
+    if action is None:
         return
 
-    is_shift = "shift" in _pressed_keys or "shift_l" in _pressed_keys or "shift_r" in _pressed_keys
-    is_ctrl = "ctrl" in _pressed_keys or "ctrl_l" in _pressed_keys or "ctrl_r" in _pressed_keys
-    is_alt = "alt" in _pressed_keys or "alt_l" in _pressed_keys or "alt_r" in _pressed_keys or "alt_gr" in _pressed_keys
-
-    if key == pynput_keyboard.Key.f5:
-        if is_ctrl and is_alt:
-            open_latest_release()
-        elif is_shift:
-            show_readme()
-        elif not is_ctrl and not is_alt:
-            job_warp()
-        return
-
-    if key == pynput_keyboard.Key.f6:
-        if is_ctrl and is_alt and not is_shift:
-            anti_afk_toggle()
-        elif is_ctrl and not is_shift and not is_alt:
-            keypad_solve()
-        elif not is_shift and not is_ctrl and not is_alt:
-            casino_solve()
-        return
-
-    if key == pynput_keyboard.Key.f7:
-        if not is_shift and not is_ctrl and not is_alt:
-            cayo_solve()
-        return
-
-    if key == pynput_keyboard.Key.f8:
-        if is_ctrl and is_alt and not is_shift:
-            _toggle_debug_hotkey()
-        elif not is_shift and not is_ctrl and not is_alt:
-            if not target_ready.is_set() or not target_focused.is_set():
-                return
-            nosave_toggle()
-        return
-
-    if key_name == "k" and is_ctrl and is_alt:
+    if action == "job_warp":
+        job_warp()
+    elif action == "casino":
+        casino_solve()
+    elif action == "keypad":
+        keypad_solve()
+    elif action == "cayo":
+        cayo_solve()
+    elif action == "toggle_nosave":
+        if not target_ready.is_set() or not target_focused.is_set():
+            return
+        nosave_toggle()
+    elif action == "toggle_debug":
+        _toggle_debug_hotkey()
+    elif action == "toggle_anti_afk":
         anti_afk_toggle()
-        return
+    elif action == "kill_game":
+        kill_game()
+    elif action == "exit":
+        shutdown()
 
 
 def _on_press(key):
@@ -571,7 +740,8 @@ def update_monitor():
         latest_release_url = release_url or RELEASES_URL
         if available and latest_tag:
             notice = (
-                f"Update available ({latest_tag}) - press CTRL + ALT + F5 to open release"
+                f'<span style="color: #fbbf24; font-weight: bold;">Update available ({latest_tag})</span> - '
+                f'<a href="{latest_release_url}" style="color: #38bdf8; text-decoration: underline; font-weight: bold;">click here</a> to download'
             )
     except Exception:
         latest_release_url = RELEASES_URL
@@ -583,23 +753,28 @@ def main():
     if not check_single_instance():
         sys.exit(0)
 
-    hotkey_map = {
-        "show_readme": "shift+f5",
-        "show_release": "ctrl+alt+f5",
-        "job_warp": "f5",
-        "casino": "f6",
-        "keypad": "ctrl+f6",
-        "cayo": "f7",
-        "toggle_nosave": "f8",
-        "toggle_debug": "ctrl+alt+f8",
-        "toggle_anti_afk": "ctrl+alt+f6",
-        "exit": "end",
-    }
+    default_hidden_actions = DEFAULT_HIDDEN_ACTIONS
+
+    global CURRENT_HOTKEYS
+    CURRENT_HOTKEYS = load_keybinds(DEFAULT_HOTKEYS, default_hidden=default_hidden_actions)
+
+    # Pre-create keybinds file if it does not exist
+    import os
+    if not os.path.exists(get_keybinds_filepath()):
+        save_keybinds(CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS)
+
+    def on_hotkeys_changed(new_hotkeys, new_hidden):
+        global CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS
+        CURRENT_HOTKEYS.clear()
+        CURRENT_HOTKEYS.update(new_hotkeys)
+        CURRENT_HIDDEN_ACTIONS = list(new_hidden)
+        save_keybinds(CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS)
 
     set_debug(DEBUG_ENABLED)
     ensure_running_as_admin_or_exit()
-    UIManager.init_dashboard(APP_TITLE, VERSION, hotkey_map)
+    UIManager.init_dashboard(APP_TITLE, VERSION, CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS)
     UIManager.register_cleanup_callback(shutdown)
+    UIManager.register_hotkeys_changed_callback(on_hotkeys_changed)
     UIManager.set_debug_state("ENABLED" if get_debug_enabled() else "DISABLED")
     UIManager.set_anti_afk_state("INACTIVE")
     Thread(
