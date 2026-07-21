@@ -6,6 +6,13 @@
 
 **A tool to assist with GTAO Heists**
 
+<br/>
+
+[![Download Latest Exe](https://img.shields.io/badge/Download-Latest%20Release%20(.exe)-2ea44f?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Abosmra3/Tessera/releases/latest/download/Tessera.exe)
+
+<br/>
+<br/>
+
 [![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/Abosmra3/Tessera/total?label=Downloads)](https://github.com/Abosmra3/Tessera/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#)
