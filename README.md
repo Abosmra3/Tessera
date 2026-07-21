@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon.ico" width="96" height="96" alt="Tessera"/>
+<img src="Tessera.png" width="96" height="96" alt="Tessera"/>
 
 # Tessera
 
