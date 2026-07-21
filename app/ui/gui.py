@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QTimer
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QSizePolicy, QVBoxLayout, QWidget, QDialog, QFormLayout, QPushButton, QCheckBox, QMessageBox
+from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QSizePolicy, QVBoxLayout, QWidget, QDialog, QFormLayout, QPushButton, QCheckBox
 
 EVENT_INIT = "INIT"
 EVENT_STATE = "STATE"
@@ -560,7 +560,8 @@ class _DashboardWindow(QWidget):
             "  padding: 4px;"
             "}"
         )
-        self._debug_editor.setMaximumHeight(160)
+        self._debug_editor.setMinimumHeight(120)
+        self._debug_editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._debug_panel.add_widget(self._debug_editor)
         self._footer_label = QLabel()
         self._footer_label.setWordWrap(True)
@@ -596,13 +597,13 @@ class _DashboardWindow(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(12, 12, 12, 12)
         main_layout.setSpacing(10)
-        main_layout.addWidget(self._title_label)
+        main_layout.addWidget(self._title_label, 0)
 
         content = QHBoxLayout()
         content.setSpacing(10)
         content.addWidget(self._controls_panel, 1)
         content.addWidget(self._status_panel, 1)
-        main_layout.addLayout(content)
+        main_layout.addLayout(content, 0)
 
         self._edit_keybinds_btn = QPushButton("Edit Keybinds")
         self._edit_keybinds_btn.setObjectName("editKeybindsBtn")
@@ -628,9 +629,9 @@ class _DashboardWindow(QWidget):
         )
         self._edit_keybinds_btn.clicked.connect(self._open_keybind_editor)
 
-        main_layout.addWidget(self._edit_keybinds_btn)
-        main_layout.addWidget(self._debug_panel)
-        main_layout.addWidget(self._footer_label)
+        main_layout.addWidget(self._edit_keybinds_btn, 0)
+        main_layout.addWidget(self._debug_panel, 1)
+        main_layout.addWidget(self._footer_label, 0)
 
         self.setWindowFlags(Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
@@ -820,7 +821,6 @@ class _DashboardWindow(QWidget):
         if value_upper == "UNFOCUSED":
             return "color: #ffc34d; font-family: 'Segoe UI'; font-size: 12px; font-weight: 700;"
         return "color: #ffffff; font-family: 'Segoe UI'; font-size: 12px; font-weight: 700;"
-
     def set_metadata(self, app_title: str, version: str, hotkeys: dict[str, str], hidden_actions: list[str]) -> None:
         self._app_title = app_title
         self._version = version
@@ -829,6 +829,8 @@ class _DashboardWindow(QWidget):
         self._build_controls()
         self._build_status()
         self.set_state(self._state)
+        self.adjustSize()
+        self.resize(self.minimumSizeHint())
 
     def closeEvent(self, event) -> None:
         self._closed = True
@@ -878,11 +880,12 @@ class _DashboardWindow(QWidget):
         if was_visible != is_visible:
             self._debug_panel.setVisible(is_visible)
             self.adjustSize()
+            self.resize(self.minimumSizeHint())
 
         footer_lines = []
-        footer_lines.append('<a href="https://github.com/Abosmra3/Tessera#how-to-use-the-tool" style="color: #70889b; text-decoration: underline;">Open guide</a>')
+        footer_lines.append('<a href="https://github.com/Abosmra3/Tessera?ref=tessera#how-to-use-the-tool" style="color: #70889b; text-decoration: underline;">Open guide</a>')
         footer_lines.append("Keep game's window visible.")
-        footer_lines.append('<span style="color: #5a6a75;">Enjoying Tessera? <a href="https://github.com/Abosmra3/Tessera" style="color: #70889b; text-decoration: underline;">Star the project</a> and share it with friends.</span>')
+        footer_lines.append('<span style="color: #5a6a75;">Enjoying Tessera? <a href="https://github.com/Abosmra3/Tessera?ref=tessera" style="color: #70889b; text-decoration: underline;">Star the project</a> and share it with friends.</span>')
         if self._state.get("nosave_error"):
             footer_lines.append(self._state["nosave_error"])
         if self._state.get("update_text"):
@@ -921,9 +924,9 @@ class _DashboardWindow(QWidget):
                     current_text = on_text if is_on else off_text
 
                 footer_lines = []
-                footer_lines.append('<a href="https://github.com/Abosmra3/Tessera#how-to-use-the-tool" style="color: #70889b; text-decoration: underline;">Open guide</a>')
+                footer_lines.append('<a href="https://github.com/Abosmra3/Tessera?ref=tessera#how-to-use-the-tool" style="color: #70889b; text-decoration: underline;">Open guide</a>')
                 footer_lines.append("Keep game's window visible.")
-                footer_lines.append('<span style="color: #5a6a75;">Enjoying Tessera? <a href="https://github.com/Abosmra3/Tessera" style="color: #70889b; text-decoration: underline;">Star the project</a> and share it with friends.</span>')
+                footer_lines.append('<span style="color: #5a6a75;">Enjoying Tessera? <a href="https://github.com/Abosmra3/Tessera?ref=tessera" style="color: #70889b; text-decoration: underline;">Star the project</a> and share it with friends.</span>')
                 if self._state.get("nosave_error"):
                     footer_lines.append(self._state["nosave_error"])
 

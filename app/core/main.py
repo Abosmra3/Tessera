@@ -4,9 +4,6 @@ import ctypes
 import ctypes.wintypes
 import threading
 from threading import Thread
-
-from PyQt6.QtCore import QSharedMemory
-from PyQt6.QtWidgets import QApplication
 import pynput
 from pynput import keyboard as pynput_keyboard
 
@@ -21,8 +18,6 @@ from app.helpers.job_warp import run_job_warp
 from app.helpers.nosave import (
     toggle_nosave,
     run_nosave_startup_check,
-    force_disable_nosave,
-    is_nosave_retryable,
 )
 from app.ui.gui import UIManager
 
@@ -33,29 +28,10 @@ DEBUG_ENABLED = "--debug" in sys.argv[1:]
 _GTA_PROCESS_NAME = "GTA5.exe"
 _GTA_TITLE_SUBSTRINGS = ["grand theft auto v"]
 
-README_URL = "https://github.com/Abosmra3/Tessera#how-to-use-the-tool"
-RELEASES_URL = "https://github.com/Abosmra3/Tessera/releases"
+RELEASES_URL = "https://github.com/Abosmra3/Tessera/releases?ref=tessera"
 latest_release_url = RELEASES_URL
 _update_notice_initialized = False
 _update_notice_lock = threading.Lock()
-
-
-def show_readme():
-    if not README_URL:
-        return
-    try:
-        webbrowser.open(README_URL)
-    except Exception:
-        pass
-
-
-def open_latest_release():
-    if not latest_release_url:
-        return
-    try:
-        webbrowser.open(latest_release_url)
-    except Exception:
-        pass
 
 
 user32 = ctypes.windll.user32
@@ -69,9 +45,6 @@ class RECT(ctypes.Structure):
         ("bottom", ctypes.c_long),
     ]
 
-
-def find_window(title: str):
-    return user32.FindWindowW(None, title)
 
 
 def _find_gta_hwnd():
@@ -135,26 +108,26 @@ def get_window_rect(hwnd):
     return None
 
 
-_shared_memory = None
+_mutex = None
 
 
 def check_single_instance() -> bool:
-    global _shared_memory
-    if QApplication.instance() is None:
-        _app = QApplication(sys.argv)
-    _shared_memory = QSharedMemory("TesseraSingleInstanceKey")
-    if not _shared_memory.create(1):
-        hwnd = ctypes.windll.user32.FindWindowW(None, "Tessera")
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 9)
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
-        ctypes.windll.user32.MessageBoxW(
-            None,
-            "Tessera is already running.",
-            "Tessera",
-            0x40 | 0x0
-        )
-        return False
+    global _mutex
+    import win32event
+    import win32api
+    import winerror
+
+    try:
+        _mutex = win32event.CreateMutex(None, False, "TesseraSingleInstanceMutex")
+        if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+            hwnd = ctypes.windll.user32.FindWindowW(None, "Tessera")
+            if hwnd:
+                # SW_RESTORE (9) restores the window if minimized or maximized
+                ctypes.windll.user32.ShowWindow(hwnd, 9)
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            return False
+    except Exception:
+        pass
     return True
 
 
@@ -737,7 +710,11 @@ def update_monitor():
     notice = ""
     try:
         available, latest_tag, release_url = get_update_status()
-        latest_release_url = release_url or RELEASES_URL
+        if release_url:
+            latest_release_url = f"{release_url}&ref=tessera" if "?" in release_url else f"{release_url}?ref=tessera"
+        else:
+            latest_release_url = RELEASES_URL
+            
         if available and latest_tag:
             notice = (
                 f'<span style="color: #fbbf24; font-weight: bold;">Update available ({latest_tag})</span> - '
