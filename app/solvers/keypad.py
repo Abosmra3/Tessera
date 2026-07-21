@@ -190,17 +190,17 @@ def calculate(numbers, cancel_event=None):
                     keyboardgo.append('s')
         keyboardgo.append('return')
 
-    _debug_print(f'[*] computed moves={keyboardgo}')
+    _debug_print(f"[*] computed moves={keyboardgo}")
     for key in keyboardgo:
         if cancel_event is not None and cancel_event.is_set():
             return False
-        keyboard.press_and_release(key)
-        if key in ('s', 'w'):
-            if not _sleep_with_cancel(0.025, cancel_event):
-                return False
-        if key == 'return':
-            if not _sleep_with_cancel(0.1, cancel_event):
-                return False
+        _debug_print(f"[*] pressing {key}")
+        keyboard.press(key)
+        if not _sleep_with_cancel(0.05, cancel_event):
+            return False
+        keyboard.release(key)
+        if not _sleep_with_cancel(0.05, cancel_event):
+            return False
 
     return True
 
