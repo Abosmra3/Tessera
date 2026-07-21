@@ -11,6 +11,7 @@ except Exception:
     overlay = None
 
 from app.core.play_sound import play_sound
+from app.core.debug import debug_print as _debug_print
 
 __all__ = ["toggle_anti_afk", "stop_anti_afk", "is_anti_afk_enabled"]
 
@@ -118,20 +119,25 @@ def _do_anti_afk_cycle(
     if not target_hwnd:
         return
 
+    _debug_print("[*] Anti AFK: Cycle triggered. Checking window focus...")
     original_hwnd = _root_window(_user32.GetForegroundWindow())
     target_was_focused = _is_target_focused(target_hwnd, original_hwnd)
     switched_focus = False
 
     if not target_was_focused:
+        _debug_print(f"[*] Anti AFK: Switching focus to game (hwnd: {target_hwnd})")
         if not _focus_window(target_hwnd):
+            _debug_print("[!] Anti AFK: Failed to focus game window")
             return
         switched_focus = True
         time.sleep(FOCUS_SETTLE_SECONDS)
 
     try:
+        _debug_print("[*] Anti AFK: Sending A and D keypresses to reset AFK timer")
         _press_a_and_d()
     finally:
         if switched_focus and original_hwnd and original_hwnd != target_hwnd:
+            _debug_print(f"[*] Anti AFK: Restoring focus to previous window (hwnd: {original_hwnd})")
             if not _focus_window(original_hwnd):
                 _alt_tab_once()
 
@@ -178,6 +184,7 @@ def toggle_anti_afk(
     with _lock:
         if _enabled:
             _stop_locked()
+            _debug_print("[*] END anti_afk (worker loop stopped)")
             new_state = False
         else:
             _enabled = True
@@ -189,6 +196,7 @@ def toggle_anti_afk(
                 name="anti_afk_worker",
             )
             _worker_thread.start()
+            _debug_print("[*] START anti_afk (worker loop started)")
             new_state = True
 
     _safe_overlay(_banner_on if new_state else _banner_off)

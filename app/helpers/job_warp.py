@@ -3,6 +3,7 @@ import time
 import threading
 from app.ui import overlay
 from app.ui.gui import UIManager
+from app.core.debug import debug_print as _debug_print
 
 __all__ = ["run_job_warp"]
 
@@ -72,6 +73,7 @@ def run_job_warp(cancel_event=None):
     with _run_lock:
         if _running:
             if _abort_event and not _abort_event.is_set():
+                _debug_print("[*] Job Warp: Abort requested by user")
                 _abort_event.set()
             return
 
@@ -81,23 +83,31 @@ def run_job_warp(cancel_event=None):
         UIManager.set_job_warp_running(True)
 
     try:
+        _debug_print("[*] START job_warp")
         _safe_overlay(_banner_started)
 
         if _is_cancelled(abort_event, cancel_event):
+            _debug_print("[*] Job Warp: Cancelled before starting")
             return
+        _debug_print("[*] Job Warp: Initiating inputs (Space -> Enter -> Alt+F4)")
         _tap_key('space')
         if _is_cancelled(abort_event, cancel_event):
+            _debug_print("[*] Job Warp: Cancelled after Space")
             return
         _tap_key('enter')
         if _is_cancelled(abort_event, cancel_event):
+            _debug_print("[*] Job Warp: Cancelled after Enter")
             return
         _tap_combo(['alt', 'f4'])
 
+        _debug_print("[*] Job Warp: Waiting 40s for game session alert screen...")
         if _wait_with_cancel(40.0, abort_event, cancel_event):
+            _debug_print("[*] Job Warp: Cancelled during wait; pressing ESC to cancel")
             _tap_key('esc')
             _safe_overlay(_banner_cancelled)
             return
 
+        _debug_print("[*] Job Warp: Session alert detected/timeout; pressing ESC to warp")
         _tap_key('esc')
         _safe_overlay(_banner_done)
 
@@ -107,3 +117,4 @@ def run_job_warp(cancel_event=None):
             if _abort_event is abort_event:
                 _abort_event = None
         UIManager.set_job_warp_running(False)
+        _debug_print("[*] END job_warp")

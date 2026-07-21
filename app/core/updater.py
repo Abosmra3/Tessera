@@ -3,6 +3,7 @@ import re
 import urllib.request
 
 from app.core.version import APP_VERSION
+from app.core.debug import debug_print as _debug_print
 
 try:
     from packaging.version import parse as _parse_version
@@ -71,6 +72,7 @@ def get_update_status(timeout: int = 8):
     if not REPO_OWNER or not REPO_NAME:
         return False, None, RELEASES_URL
     try:
+        _debug_print("[*] Updater: Requesting release info from GitHub API...")
         req = urllib.request.Request(
             GITHUB_LATEST_API,
             headers={'User-Agent': 'AutomationToolkit/1.0'},
@@ -83,8 +85,12 @@ def get_update_status(timeout: int = 8):
         release_url = payload.get('html_url') or RELEASES_URL
 
         if not latest_tag:
+            _debug_print("[!] Updater: No valid version tag found in GitHub payload")
             return False, None, release_url
 
-        return _is_version_newer(CURRENT_VERSION, latest_tag), latest_tag, release_url
-    except Exception:
+        is_newer = _is_version_newer(CURRENT_VERSION, latest_tag)
+        _debug_print(f"[*] Updater: Latest release is {latest_tag} (New update available: {is_newer})")
+        return is_newer, latest_tag, release_url
+    except Exception as e:
+        _debug_print(f"[!] Updater: Failed to fetch update status: {e}")
         return False, None, RELEASES_URL

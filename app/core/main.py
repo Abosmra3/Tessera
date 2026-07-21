@@ -9,7 +9,7 @@ from pynput import keyboard as pynput_keyboard
 
 from app.core.updater import get_update_status
 from app.core.version import APP_VERSION
-from app.core.debug import get_debug_enabled, set_debug, toggle_debug
+from app.core.debug import get_debug_enabled, set_debug, toggle_debug, debug_print as _debug_print
 from app.solvers.cayo import solve_cayo
 from app.solvers.casino import solve_casino
 from app.solvers.keypad import solve_keypad
@@ -120,12 +120,13 @@ def check_single_instance() -> bool:
     try:
         _mutex = win32event.CreateMutex(None, False, "TesseraSingleInstanceMutex")
         if win32api.GetLastError() == winerror.ERROR_ALREADY_EXISTS:
+            _debug_print("[!] Startup: Mutex check failed; refocusing existing Tessera instance and exiting.")
             hwnd = ctypes.windll.user32.FindWindowW(None, "Tessera")
             if hwnd:
-                # SW_RESTORE (9) restores the window if minimized or maximized
                 ctypes.windll.user32.ShowWindow(hwnd, 9)
                 ctypes.windll.user32.SetForegroundWindow(hwnd)
             return False
+        _debug_print("[*] Startup: Mutex check passed; single instance verified.")
     except Exception:
         pass
     return True
@@ -140,6 +141,7 @@ def is_admin() -> bool:
 
 def ensure_running_as_admin_or_exit():
     if is_admin():
+        _debug_print("[*] Startup: Admin privileges confirmed")
         return
 
     if getattr(sys, "frozen", False):
@@ -569,6 +571,9 @@ def load_keybinds(defaults, default_hidden=None):
                     if isinstance(raw_hidden, list):
                         CURRENT_HIDDEN_ACTIONS = [str(a).strip().lower() for a in raw_hidden]
 
+                    saved_debug = data.get("debug_enabled", False)
+                    set_debug(saved_debug)
+
                     merged = dict(defaults)
                     seen_combos = set()
                     has_duplicates = False
@@ -602,6 +607,7 @@ def save_keybinds(keybinds, hidden_actions):
     try:
         data = dict(keybinds)
         data["hidden_actions"] = list(hidden_actions)
+        data["debug_enabled"] = get_debug_enabled()
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
         return True
@@ -612,6 +618,7 @@ def save_keybinds(keybinds, hidden_actions):
 def _toggle_debug_hotkey():
     enabled = toggle_debug()
     UIManager.set_debug_state("ENABLED" if enabled else "DISABLED")
+    save_keybinds(CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS)
 
 
 def _normalize_key(key):
@@ -664,6 +671,8 @@ def _dispatch_hotkey(key):
 
     if action is None:
         return
+
+    _debug_print(f"[*] Hotkey triggered: {action} ({pressed_combo})")
 
     if action == "job_warp":
         job_warp()
@@ -727,6 +736,7 @@ def update_monitor():
 
 
 def main():
+    _debug_print(f"[*] Startup: Initiating Tessera {VERSION}...")
     if not check_single_instance():
         sys.exit(0)
 
@@ -735,7 +745,6 @@ def main():
     global CURRENT_HOTKEYS
     CURRENT_HOTKEYS = load_keybinds(DEFAULT_HOTKEYS, default_hidden=default_hidden_actions)
 
-    # Pre-create keybinds file if it does not exist
     import os
     if not os.path.exists(get_keybinds_filepath()):
         save_keybinds(CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS)
@@ -746,20 +755,25 @@ def main():
         CURRENT_HOTKEYS.update(new_hotkeys)
         CURRENT_HIDDEN_ACTIONS = list(new_hidden)
         save_keybinds(CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS)
+        _debug_print("[*] Hotkeys: Keybind configuration updated and saved")
 
-    set_debug(DEBUG_ENABLED)
+    if DEBUG_ENABLED:
+        set_debug(True)
     ensure_running_as_admin_or_exit()
     UIManager.init_dashboard(APP_TITLE, VERSION, CURRENT_HOTKEYS, CURRENT_HIDDEN_ACTIONS)
     UIManager.register_cleanup_callback(shutdown)
     UIManager.register_hotkeys_changed_callback(on_hotkeys_changed)
     UIManager.set_debug_state("ENABLED" if get_debug_enabled() else "DISABLED")
     UIManager.set_anti_afk_state("INACTIVE")
+    
+    _debug_print("[*] Startup: Running initial Nosave verification check in background...")
     Thread(
         target=run_nosave_startup_check,
         daemon=True,
         name="nosave_startup_check",
     ).start()
 
+    _debug_print("[*] Startup: Launching update monitor check in background...")
     Thread(target=update_monitor, daemon=True).start()
 
     target_monitor = TargetEventMonitor()

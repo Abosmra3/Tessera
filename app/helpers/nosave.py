@@ -5,6 +5,7 @@ import time
 from app.helpers.firewall_check import get_firewall_health_summary
 from app.ui.gui import UIManager
 from app.core.play_sound import play_sound
+from app.core.debug import debug_print as _debug_print
 
 __all__ = [
     "toggle_nosave",
@@ -174,6 +175,7 @@ def run_nosave_startup_check() -> None:
     """Silently verify firewall effectiveness once at startup via socket test."""
     global _firewall_enabled, _startup_failed
     with _toggle_lock:
+        _debug_print("[*] START nosave_startup_check")
         if _rule_exists():
             _delete_rule_by_name()
 
@@ -183,22 +185,28 @@ def run_nosave_startup_check() -> None:
         UIManager.set_nosave_error_notice("")
 
         _delete_rule_by_name()
+        _debug_print(f"[*] Nosave: Creating test rule to block remote server ({BLOCK_IP})")
         _add_rule_out(RULE_NAME, BLOCK_IP)
         time.sleep(0.35)
+        
+        _debug_print("[*] Nosave: Verifying save server block status...")
         blocked_ok = _test_ip_blocked()
 
         _delete_rule_by_name()
         time.sleep(0.2)
 
         if not blocked_ok:
+            _debug_print("[!] Nosave: Block check FAILED (server was still reachable)")
             _delete_rule_by_name()
             _startup_failed = True
             _firewall_enabled = False
             error_reason = _get_nosave_error_reason()
             UIManager.set_nosave_error_notice(f"{error_reason} Press F8 to recheck.")
             UIManager.set_nosave_state("ERROR")
+            _debug_print("[*] END nosave_startup_check - FAILED")
             return
 
+        _debug_print("[*] Nosave: Block check SUCCEEDED (server correctly blocked)")
         _startup_failed = False
         if _rule_exists():
             _delete_rule_by_name()
@@ -206,6 +214,7 @@ def run_nosave_startup_check() -> None:
 
         _firewall_enabled = False
         UIManager.set_nosave_state("INACTIVE")
+        _debug_print("[*] END nosave_startup_check - PASSED")
 
 
 def _cancelled(cancel_event=None) -> bool:
@@ -226,6 +235,7 @@ def _add_firewall_rule(cancel_event=None):
             _force_disable_rule()
             return
 
+        _debug_print(f"[*] Nosave: Blocking remote save server ({BLOCK_IP})")
         _delete_rule_by_name()
         _add_rule_out(RULE_NAME, BLOCK_IP)
 
@@ -243,6 +253,7 @@ def _delete_firewall_rule(cancel_event=None):
             _force_disable_rule()
             return
 
+        _debug_print("[*] Nosave: Unblocking remote save server")
         _delete_rule_by_name()
 
         time.sleep(0.05)
@@ -259,6 +270,7 @@ def toggle_nosave(cancel_event=None):
         return
 
     if _startup_failed:
+        _debug_print("[*] Nosave: Retrying failed startup check...")
         UIManager.set_nosave_state("VERIFYING")
         UIManager.set_nosave_error_notice("")
         run_nosave_startup_check()
@@ -271,6 +283,10 @@ def toggle_nosave(cancel_event=None):
         return
 
     if _firewall_enabled:
+        _debug_print("[*] START toggle_nosave (Disabling outbound block)")
         _delete_firewall_rule(cancel_event=cancel_event)
+        _debug_print("[*] END toggle_nosave (Saves unblocked)")
     else:
+        _debug_print("[*] START toggle_nosave (Enabling outbound block)")
         _add_firewall_rule(cancel_event=cancel_event)
+        _debug_print("[*] END toggle_nosave (Saves blocked)")

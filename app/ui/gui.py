@@ -727,6 +727,12 @@ class _DashboardWindow(QWidget):
                         os.remove(path)
                 except Exception:
                     pass
+                try:
+                    from app.core.debug import set_debug
+                    set_debug(False)
+                    UIManager.set_debug_state("DISABLED")
+                except Exception:
+                    pass
 
             self._hotkeys = new_hotkeys
             self._hidden_actions = new_hidden
