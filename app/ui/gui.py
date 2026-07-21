@@ -477,10 +477,10 @@ class KeybindEditorDialog(QDialog):
 
 def _resolve_icon_path() -> str:
     base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
-    icon_path = base_dir / "icon.ico"
+    icon_path = base_dir / "assets" / "icon.png"
     if icon_path.exists():
         return str(icon_path)
-    icon_path = Path("icon.ico")
+    icon_path = Path("assets/icon.png")
     if icon_path.exists():
         return str(icon_path.resolve())
     return ""
@@ -851,11 +851,19 @@ class _DashboardWindow(QWidget):
 
         self._state = dict(state)
         
+        icon_path = _resolve_icon_path()
+        icon_td = f'<td style="vertical-align: middle; padding-right: 6px;"><img src="{icon_path}" width="14" height="14"/></td>' if icon_path else ""
+
         title_html = (
-            f'<div style="text-align: center;">'
-            f'<span style="font-family: \'Segoe UI\'; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.8px;">{self._app_title.upper()}</span>'
-            f'<span style="font-family: \'Segoe UI\'; font-size: 9px; font-weight: 700; color: #58c8ff; background-color: rgba(88, 200, 255, 0.15); border: 1px solid rgba(88, 200, 255, 0.3); border-radius: 4px; padding: 1px 5px; margin-left: 8px; vertical-align: middle;">{self._version}</span>'
-            f'</div>'
+            f'<table align="center" cellpadding="0" cellspacing="0">'
+            f'<tr>'
+            f'{icon_td}'
+            f'<td style="font-family: \'Segoe UI\'; font-size: 18px; font-weight: 800; color: #ffffff; letter-spacing: 0.8px; padding-right: 8px; vertical-align: middle;">{self._app_title.upper()}</td>'
+            f'<td style="vertical-align: bottom; padding-bottom: 2px;">'
+            f'<span style="font-family: \'Segoe UI\'; font-size: 10px; font-weight: 700; color: #58c8ff; background-color: rgba(88, 200, 255, 0.15); border: 1px solid rgba(88, 200, 255, 0.3); border-radius: 4px; padding: 0px 3px; vertical-align: middle;">{self._version}</span>'
+            f'</td>'
+            f'</tr>'
+            f'</table>'
         )
         if self._title_label.text() != title_html:
             self._title_label.setText(title_html)
